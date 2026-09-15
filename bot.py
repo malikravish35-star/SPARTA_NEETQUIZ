@@ -35,6 +35,14 @@ GAP_SECONDS = 15
 MAX_QUESTIONS = 100
 # ==============
 
+# === THREAD IDs (subject wise) ===
+THREAD_IDS = {
+    "Physics": 2563,
+    "Chemistry": 2565,
+    "Biology": None,   # None = General topic
+}
+# ================================
+
 # === 50 GENERAL MOTIVATIONAL QUOTES ===
 QUOTES = [
     "🌟 *Shabash!* Consistency hi success ki chaabi hai. Aise hi lagay raho!",
@@ -90,25 +98,38 @@ QUOTES = [
 ]
 # =======================================
 
-# === questions.json load ===
-with open("questions.json", "r", encoding="utf-8") as f:
-    DATA = json.load(f)
+# === DONO FILES LOAD KARO ===
+QUESTIONS = []
 
-QUESTIONS = DATA["questions"]
+# Biology questions
+try:
+    with open("questions.json", "r", encoding="utf-8") as f:
+        bio_data = json.load(f)
+        for q in bio_data["questions"]:
+            q["subject"] = "Biology"
+        QUESTIONS.extend(bio_data["questions"])
+    logger.info(f"Biology: {len(bio_data['questions'])} questions loaded")
+except Exception as e:
+    logger.error(f"questions.json load error: {e}")
+
+# Chemistry questions
+try:
+    with open("chemistry.json", "r", encoding="utf-8") as f:
+        chem_data = json.load(f)
+        for q in chem_data["questions"]:
+            q["subject"] = "Chemistry"
+        QUESTIONS.extend(chem_data["questions"])
+    logger.info(f"Chemistry: {len(chem_data['questions'])} questions loaded")
+except Exception as e:
+    logger.error(f"chemistry.json load error: {e}")
+
+logger.info(f"TOTAL: {len(QUESTIONS)} questions loaded")
+# =============================================
 
 # === Active quiz sessions (per group) ===
 ACTIVE_SESSIONS = set()
 POLL_TRACKER = {}
-
-# === THREAD ID MAP (baad mein update karenge) ===
-# Example:
-# THREAD_IDS = {
-#     "Biology": 45,
-#     "Chemistry": 46,
-#     "Physics": 47,
-# }
-THREAD_IDS = {}
-# =============================================
+# =========================================
 
 
 # === HTTP Server (Render health check) ===
@@ -142,15 +163,30 @@ def clean_text(text):
     return text.strip()
 
 
+def matches_filter(q, filter_text):
+    """Check karo ki question filter se match karta hai ya nahi (partial match)."""
+    filter_lower = filter_text.lower().strip()
+    subject = q.get("subject", "").lower()
+    chapter = q.get("chapter", "").lower()
+    
+    # Subject mein partial match
+    if filter_lower in subject:
+        return True
+    # Chapter mein partial match
+    if filter_lower in chapter:
+        return True
+    return False
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"🎯 *{BRAND_NAME}* mein aapka swagat!\n"
         f"_{BRAND_TAGLINE}_\n\n"
         "📖 *Commands:*\n"
-        "▫️ `/quiz 10` - 10 questions\n"
-        "▫️ `/quiz 50` - 50 questions\n"
-        "▫️ `/quiz 100` - 100 questions\n"
-        "▫️ `/quiz 20 The Living World` - Chapter wise\n"
+        "▫️ `/quiz 10` - 10 random questions\n"
+        "▫️ `/quiz 10 chemistry` - Chemistry ke 10 questions\n"
+        "▫️ `/quiz 10 biology` - Biology ke 10 questions\n"
+        "▫️ `/quiz 10 mole` - Chapter wise (partial match)\n"
         "▫️ `/stop` - Quiz rok do\n"
         "▫️ `/chapters` - Chapter list\n"
         "▫️ `/help` - Madad\n\n"
@@ -164,31 +200,18 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📖 *Commands:*\n\n"
         "*Basic:*\n"
-        "`/quiz 10` - 10 questions\n"
-        "`/quiz 50` - 50 questions\n"
-        "`/quiz 100` - 100 questions\n\n"
-        "*Chapter wise:*\n"
-        "`/quiz 20 The Living World`\n"
-        "`/quiz 50 Plant Kingdom`\n\n"
+        "`/quiz 10` - 10 random questions\n"
+        "`/quiz 50` - 50 questions\n\n"
+        "*Subject wise:*\n"
+        "`/quiz 10 chemistry`\n"
+        "`/quiz 10 biology`\n\n"
+        "*Chapter wise (partial match):*\n"
+        "`/quiz 10 mole`\n"
+        "`/quiz 20 living world`\n\n"
         "*Others:*\n"
         "`/chapters` - Saare chapters\n"
-        "`/stop` - Quiz rok do\n"
-        "`/getids` - Topic ID pata karo\n\n"
+        "`/stop` - Quiz rok do\n\n"
         f"⏱️ Har question ke beech {GAP_SECONDS} second ka gap",
-        parse_mode="Markdown"
-    )
-
-
-async def getids(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Topic/Thread ID pata karne ke liye test command."""
-    chat = update.effective_chat
-    msg = update.effective_message
-    thread_id = msg.message_thread_id if msg.message_thread_id else "None"
-    await update.message.reply_text(
-        f"Chat ID: `{chat.id}`\n"
-        f"Chat Type: `{chat.type}`\n"
-        f"Thread ID: `{thread_id}`\n"
-        f"Is Forum: `{chat.is_forum}`",
         parse_mode="Markdown"
     )
 
@@ -204,7 +227,7 @@ async def chapters(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def send_one_quiz(chat_id, context, q, thread_id=None):
+async def send_one_quiz(chat_id, context, q):
     """Ek question bhejo aur poll ID track karo."""
     options = [clean_text(o)[:100] for o in q["options"]]
 
@@ -218,6 +241,10 @@ async def send_one_quiz(chat_id, context, q, thread_id=None):
     answer = q.get("answer", 0)
     if not isinstance(answer, int) or answer < 0 or answer > 3:
         return False
+
+    # Subject ke hisaab se thread_id choose karo
+    subject = q.get("subject", "Biology")
+    thread_id = THREAD_IDS.get(subject, None)
 
     try:
         msg = await context.bot.send_poll(
@@ -276,8 +303,8 @@ async def poll_answer_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Usage:
-      /quiz <number>            -> itne questions (1-100)
-      /quiz <number> <chapter>  -> chapter wise
+      /quiz <number>                     -> itne random questions
+      /quiz <number> <filter>            -> subject ya chapter (partial match)
     """
     if not QUESTIONS:
         await update.message.reply_text("Question bank khaali hai.")
@@ -292,25 +319,17 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Thread ID nikalo (agar group mein topics enabled hain)
-    thread_id = None
-    if update.effective_chat.is_forum:
-        thread_id = update.effective_message.message_thread_id
-        # General topic ka ID 1 hota hai, uske liye None bhejo
-        if thread_id == 1:
-            thread_id = None
-
     args = context.args or []
     count = 1
-    chapter_filter = None
+    filter_text = None
 
     if args:
         if args[0].isdigit():
             count = int(args[0])
             if len(args) > 1:
-                chapter_filter = " ".join(args[1:]).lower()
+                filter_text = " ".join(args[1:]).strip()
         else:
-            chapter_filter = " ".join(args).lower()
+            filter_text = " ".join(args).strip()
 
     if count < 1:
         count = 1
@@ -321,11 +340,12 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         count = MAX_QUESTIONS
 
-    if chapter_filter:
-        pool = [q for q in QUESTIONS if q.get("chapter", "").lower() == chapter_filter]
+    # Pool select karo (partial match)
+    if filter_text:
+        pool = [q for q in QUESTIONS if matches_filter(q, filter_text)]
         if not pool:
             await update.message.reply_text(
-                f"❌ '{chapter_filter}' chapter mein koi question nahi mila.\n"
+                f"❌ '{filter_text}' se koi question nahi mila.\n"
                 f"/chapters se list dekho."
             )
             return
@@ -336,23 +356,22 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if count == 1:
         for _ in range(5):
             q = random.choice(pool)
-            if await send_one_quiz(chat_id, context, q, thread_id=thread_id):
+            if await send_one_quiz(chat_id, context, q):
                 return
         await update.message.reply_text("Question bhejne mein problem aayi.")
         return
 
     ACTIVE_SESSIONS.add(chat_id)
-    chapter_msg = f"📖 Chapter: {chapter_filter.title()}\n" if chapter_filter else ""
+    filter_msg = f"📖 {filter_text.title()}\n" if filter_text else ""
 
     await update.message.reply_text(
         f"🎯 *{BRAND_NAME}*\n\n"
-        f"{chapter_msg}"
+        f"{filter_msg}"
         f"📝 {count} questions aa rahe hain...\n"
         f"⏱️ Har question ke beech {GAP_SECONDS} second ka gap.\n"
         f"🛑 Rokne ke liye /stop bhejo.\n\n"
         f"Apne answers ready rakho! 💪",
-        parse_mode="Markdown",
-        message_thread_id=thread_id,
+        parse_mode="Markdown"
     )
 
     sent = 0
@@ -365,8 +384,7 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"🛑 Quiz rok diya gaya.\n"
                 f"📊 Total {sent} questions bheje gaye the.\n\n"
                 f"Dobara shuru karne ke liye `/quiz {count}` bhejo.",
-                parse_mode="Markdown",
-                message_thread_id=thread_id,
+                parse_mode="Markdown"
             )
             return
 
@@ -378,7 +396,7 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
             continue
         used.add(qid)
 
-        if await send_one_quiz(chat_id, context, q, thread_id=thread_id):
+        if await send_one_quiz(chat_id, context, q):
             sent += 1
             if sent < count:
                 for _ in range(GAP_SECONDS):
@@ -387,8 +405,7 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             f"🛑 Quiz rok diya gaya.\n"
                             f"📊 Total {sent} questions bheje gaye the.\n\n"
                             f"Dobara shuru karne ke liye `/quiz {count}` bhejo.",
-                            parse_mode="Markdown",
-                            message_thread_id=thread_id,
+                            parse_mode="Markdown"
                         )
                         return
                     await asyncio.sleep(1)
@@ -402,36 +419,26 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📊 Total {sent} questions bheje gaye.\n"
         f"🔁 Aur practice ke liye `/quiz {count}` bhejo\n\n"
         f"📚 Powered by {BRAND_NAME}",
-        parse_mode="Markdown",
-        message_thread_id=thread_id,
+        parse_mode="Markdown"
     )
 
 
 async def stop_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Chalu quiz session ko rok do."""
     chat_id = update.effective_chat.id
-
-    thread_id = None
-    if update.effective_chat.is_forum:
-        thread_id = update.effective_message.message_thread_id
-        if thread_id == 1:
-            thread_id = None
-
     if chat_id in ACTIVE_SESSIONS:
         ACTIVE_SESSIONS.discard(chat_id)
         await update.message.reply_text(
             f"🛑 *Quiz session rok diya gaya.*\n\n"
             f"Dobara shuru karne ke liye `/quiz 10` bhejo.\n\n"
             f"📚 Powered by {BRAND_NAME}",
-            parse_mode="Markdown",
-            message_thread_id=thread_id,
+            parse_mode="Markdown"
         )
     else:
         await update.message.reply_text(
             "⚠️ Koi active quiz session nahi chal raha.\n"
             "Start karne ke liye `/quiz 10` bhejo.",
-            parse_mode="Markdown",
-            message_thread_id=thread_id,
+            parse_mode="Markdown"
         )
 
 
@@ -452,7 +459,6 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_cmd))
     app.add_handler(CommandHandler("chapters", chapters))
-    app.add_handler(CommandHandler("getids", getids))
     app.add_handler(CommandHandler("quiz", quiz))
     app.add_handler(CommandHandler("stop", stop_quiz))
     app.add_handler(PollAnswerHandler(poll_answer_handler))

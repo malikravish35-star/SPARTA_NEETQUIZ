@@ -1,4 +1,3 @@
-GAP_SECONDS = 15
 import asyncio
 import json
 import os
@@ -32,26 +31,64 @@ logger = logging.getLogger(__name__)
 # === CONFIG ===
 BRAND_NAME = "SPARTA NEETQUIZ"
 BRAND_TAGLINE = "India ka sabse tez NEET quiz bot"
-GAP_SECONDS = 15          # Har question ke beech gap
-MAX_QUESTIONS = 100       # Ek baar mein max questions
+GAP_SECONDS = 15
+MAX_QUESTIONS = 100
 # ==============
 
-# === MOTIVATIONAL QUOTES ===
+# === 50 GENERAL MOTIVATIONAL QUOTES ===
 QUOTES = [
     "🌟 *Shabash!* Consistency hi success ki chaabi hai. Aise hi lagay raho!",
-    "🔥 *Kya baat!* Aaj ka mehnat kal ka selection hai. Keep going!",
-    "💪 *Excellent!* NEET ka topper banna hai toh aise hi practice karo!",
+    "🔥 *Kya baat!* Aaj ki mehnat kal ka selection hai. Keep going!",
+    "💪 *Excellent!* Topper banna hai toh aise hi practice karo!",
     "🎯 *Perfect!* Har sahi answer tumhe selection ke aur kareeb le jata hai.",
-    "🚀 *Zabardast!* Doctor banne ka sapna aise hi poora hoga!",
-    "⭐ *Great job!* Sachin Tendulkar bhi daily practice se legend bana tha.",
+    "🚀 *Zabardast!* Sapna aise hi poora hota hai!",
+    "⭐ *Great job!* Legend bhi daily practice se hi banta hai.",
     "🏆 *Superb!* Aaj ka effort, kal ki success. Aise hi ladte raho!",
     "🧠 *Smart move!* Concept clear, answer correct. Yehi formula hai!",
-    "💡 *Right answer!* NEET crack karne ke liye aise hi focus chahiye!",
-    "🎓 *Well done!* Doctor banna mushkil hai, lekin tum kar sakte ho!",
+    "💡 *Right answer!* Aise hi focus chahiye!",
+    "🎓 *Well done!* Manzil mushkil hai, lekin tum kar sakte ho!",
     "🌱 *Good!* Chhote-chhote steps se hi bada safar tay hota hai.",
-    "⚡ *Fast and correct!* Yehi speed NEET exam mein kaam aayegi!",
+    "⚡ *Fast and correct!* Yehi speed exam mein kaam aayegi!",
+    "🔥 *Aag laga di!* Aise hi consistent raho, selection pakka hai!",
+    "💎 *Heera ho tum!* Mehnat se hi chamakta hai asli talent.",
+    "🦁 *Sher ho tum!* Exam hall mein bhi aise hi dahaadna!",
+    "🌟 *Brilliant!* Aaj ka hard work kal ki seat banega!",
+    "🎖️ *Champion!* Har din practice karo, rank apne aap aayegi!",
+    "🚀 *Rocket speed!* Aise hi solve karte raho, time bachega!",
+    "💯 *Perfect score!* Concept crystal clear hai, aur kya chahiye!",
+    "🎯 *Target hit!* Aise hi accuracy build karo!",
+    "🔥 *Josh high!* Ye energy exam tak banaye rakho!",
+    "💪 *Mental power!* Aise hi focus karo, distraction bhaga do!",
+    "🌟 *Star ho tum!* Topper banne ka sapna sach hoga!",
+    "📚 *Padhai ka josh!* Aise hi hours badhao, success milegi!",
+    "⏰ *Time master!* Speed aur accuracy dono perfect!",
+    "🧠 *Sharp mind!* Aise hi tricky questions solve karte raho!",
+    "🏅 *Medal jeeta!* Har correct answer ek medal hai!",
+    "🚀 *Sky is limit!* Aise hi practice karo, kuch bhi possible hai!",
+    "💡 *Idea guru!* Concept clear, answer correct, aur kya!",
+    "🎓 *Future topper!* Aise hi lagay raho!",
+    "🌈 *Colourful mind!* Har chapter ka rang alag, aise hi samjho!",
+    "🍀 *Lucky bhi, smart bhi!* Mehnat se hi luck banate ho!",
+    "🔥 *Blazing speed!* Aise hi solve karo, time kam nahi padega!",
+    "💥 *Dhamaka!* Answer correct, mind sharp!",
+    "🎯 *Bull's eye!* Perfect aim, perfect answer!",
+    "🏆 *Winner ho!* Aise hi lade raho, trophy tumhari hai!",
+    "🌟 *Rising star!* Har din better ban rahe ho!",
+    "💪 *Iron will!* Consistency hi asli power hai!",
+    "🚀 *Success ke raaste pe!* Aise hi chalo, manzil door nahi!",
+    "🧠 *Mastermind!* Aise hi socho, aise hi solve karo!",
+    "💎 *Diamond ban rahe ho!* Pressure se hi diamond banta hai!",
+    "🔥 *Fire hai tum mein!* Aise hi jalte raho, success milegi!",
+    "🎖️ *Topper material!* Aise hi lagay raho, rank aayegi!",
+    "🌈 *Umeed ki kiran!* Har answer ek step hai selection ke taraf!",
+    "💯 *Perfect!* Aise hi chalo, selection hoga!",
+    "⭐ *Shining star!* Tumhari mehnat rang laayegi!",
+    "🎯 *On target!* Aise hi karte raho, rank apne aap aayegi!",
+    "💪 *Unstoppable!* Koi tumhe rok nahi sakta!",
+    "🌟 *Boss ho tum!* Aise hi dominate karo!",
+    "🔥 *Full josh!* Mehnat ka fal zaroor milega!",
 ]
-# ==========================
+# =======================================
 
 # === questions.json load ===
 with open("questions.json", "r", encoding="utf-8") as f:
@@ -59,15 +96,13 @@ with open("questions.json", "r", encoding="utf-8") as f:
 
 QUESTIONS = DATA["questions"]
 
-# === Active quiz sessions (group_id -> True) ===
+# === Active quiz sessions (per group) ===
 ACTIVE_SESSIONS = set()
-
-# === Poll ID -> question data mapping ===
 POLL_TRACKER = {}
-# =============================================
+# =========================================
 
 
-# === HTTP Server (Render health check ke liye) ===
+# === HTTP Server (Render health check) ===
 class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -84,7 +119,7 @@ def run_http_server():
     server = HTTPServer(("0.0.0.0", port), HealthHandler)
     logger.info(f"HTTP server port {port} pe chal raha hai")
     server.serve_forever()
-# ================================================
+# ==========================================
 
 
 def clean_text(text):
@@ -103,7 +138,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🎯 *{BRAND_NAME}* mein aapka swagat!\n"
         f"_{BRAND_TAGLINE}_\n\n"
         "📖 *Commands:*\n"
-        "▫️ `/quiz <number>` - Itne questions (1-100)\n"
+        "▫️ `/quiz 10` - 10 questions\n"
         "▫️ `/quiz 50` - 50 questions\n"
         "▫️ `/quiz 100` - 100 questions\n"
         "▫️ `/quiz 20 The Living World` - Chapter wise\n"
@@ -208,15 +243,14 @@ async def poll_answer_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
                 parse_mode="HTML"
             )
         except Exception as e:
-            logger.error(f"Correct answer msg error: {e}")
+            logger.warning(f"Correct answer msg skip: {e}")
 
 
 async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Usage:
-      /quiz            -> 1 random question
-      /quiz 50         -> 50 questions
-      /quiz 50 Chapter -> 50 questions from that chapter
+      /quiz <number>            -> itne questions (1-100)
+      /quiz <number> <chapter>  -> chapter wise
     """
     if not QUESTIONS:
         await update.message.reply_text("Question bank khaali hai.")
@@ -232,33 +266,26 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     args = context.args or []
-
-    # Default 1 question agar kuch nahi diya
     count = 1
     chapter_filter = None
 
     if args:
-        # Pehla argument number hai kya?
         if args[0].isdigit():
             count = int(args[0])
-            # Baaki arguments chapter name
             if len(args) > 1:
                 chapter_filter = " ".join(args[1:]).lower()
         else:
-            # Number nahi diya, sirf chapter name diya
             chapter_filter = " ".join(args).lower()
 
-    # Count limits
     if count < 1:
         count = 1
     if count > MAX_QUESTIONS:
         await update.message.reply_text(
             f"⚠️ Maximum {MAX_QUESTIONS} questions ek baar mein.\n"
-            f"Tune {count} maange the. {MAX_QUESTIONS} set kar diya."
+            f"{MAX_QUESTIONS} set kar diya."
         )
         count = MAX_QUESTIONS
 
-    # Pool select karo
     if chapter_filter:
         pool = [q for q in QUESTIONS if q.get("chapter", "").lower() == chapter_filter]
         if not pool:
@@ -270,18 +297,16 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         pool = QUESTIONS
 
-    # Agar 1 question chahiye toh seedha bhej do (session start nahi karo)
+    # 1 question ke liye session start nahi karo
     if count == 1:
         for _ in range(5):
             q = random.choice(pool)
             if await send_one_quiz(chat_id, context, q):
                 return
-        await update.message.reply_text("Question bhejne mein problem aayi. Dobara try karo.")
+        await update.message.reply_text("Question bhejne mein problem aayi.")
         return
 
-    # Multi-question session
     ACTIVE_SESSIONS.add(chat_id)
-
     chapter_msg = f"📖 Chapter: {chapter_filter.title()}\n" if chapter_filter else ""
 
     await update.message.reply_text(
@@ -366,10 +391,18 @@ def main():
     if not BOT_TOKEN:
         raise SystemExit("BOT_TOKEN environment variable set karo.")
 
+    # HTTP server background thread mein (Render health check)
     http_thread = threading.Thread(target=run_http_server, daemon=True)
     http_thread.start()
 
-    app = Application.builder().token(BOT_TOKEN).build()
+    # concurrent_updates(True) — MULTIPLE GROUPS EK SAATH
+    app = (
+        Application.builder()
+        .token(BOT_TOKEN)
+        .concurrent_updates(True)
+        .build()
+    )
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_cmd))
     app.add_handler(CommandHandler("chapters", chapters))

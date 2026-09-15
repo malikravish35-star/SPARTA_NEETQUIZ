@@ -99,7 +99,16 @@ QUESTIONS = DATA["questions"]
 # === Active quiz sessions (per group) ===
 ACTIVE_SESSIONS = set()
 POLL_TRACKER = {}
-# =========================================
+
+# === THREAD ID MAP (baad mein update karenge) ===
+# Example:
+# THREAD_IDS = {
+#     "Biology": 45,
+#     "Chemistry": 46,
+#     "Physics": 47,
+# }
+THREAD_IDS = {}
+# =============================================
 
 
 # === HTTP Server (Render health check) ===
@@ -163,8 +172,23 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "`/quiz 50 Plant Kingdom`\n\n"
         "*Others:*\n"
         "`/chapters` - Saare chapters\n"
-        "`/stop` - Quiz rok do\n\n"
+        "`/stop` - Quiz rok do\n"
+        "`/getids` - Topic ID pata karo\n\n"
         f"⏱️ Har question ke beech {GAP_SECONDS} second ka gap",
+        parse_mode="Markdown"
+    )
+
+
+async def getids(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Topic/Thread ID pata karne ke liye test command."""
+    chat = update.effective_chat
+    msg = update.effective_message
+    thread_id = msg.message_thread_id if msg.message_thread_id else "None"
+    await update.message.reply_text(
+        f"Chat ID: `{chat.id}`\n"
+        f"Chat Type: `{chat.type}`\n"
+        f"Thread ID: `{thread_id}`\n"
+        f"Is Forum: `{chat.is_forum}`",
         parse_mode="Markdown"
     )
 
@@ -180,7 +204,7 @@ async def chapters(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def send_one_quiz(chat_id, context, q):
+async def send_one_quiz(chat_id, context, q, thread_id=None):
     """Ek question bhejo aur poll ID track karo."""
     options = [clean_text(o)[:100] for o in q["options"]]
 
@@ -203,10 +227,12 @@ async def send_one_quiz(chat_id, context, q):
             type=Poll.QUIZ,
             correct_option_id=answer,
             is_anonymous=False,
+            message_thread_id=thread_id,
         )
         POLL_TRACKER[msg.poll.id] = {
             "chat_id": chat_id,
             "correct_option_id": answer,
+            "thread_id": thread_id,
         }
         return True
     except Exception as e:
@@ -240,7 +266,8 @@ async def poll_answer_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
             await context.bot.send_message(
                 chat_id=poll_data["chat_id"],
                 text=f"{quote}\n\n— {mention} ✅",
-                parse_mode="HTML"
+                parse_mode="HTML",
+                message_thread_id=poll_data.get("thread_id"),
             )
         except Exception as e:
             logger.warning(f"Correct answer msg skip: {e}")
@@ -264,6 +291,14 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Rokne ke liye /stop bhejo."
         )
         return
+
+    # Thread ID nikalo (agar group mein topics enabled hain)
+    thread_id = None
+    if update.effective_chat.is_forum:
+        thread_id = update.effective_message.message_thread_id
+        # General topic ka ID 1 hota hai, uske liye None bhejo
+        if thread_id == 1:
+            thread_id = None
 
     args = context.args or []
     count = 1
@@ -301,7 +336,7 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if count == 1:
         for _ in range(5):
             q = random.choice(pool)
-            if await send_one_quiz(chat_id, context, q):
+            if await send_one_quiz(chat_id, context, q, thread_id=thread_id):
                 return
         await update.message.reply_text("Question bhejne mein problem aayi.")
         return
@@ -316,7 +351,8 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"⏱️ Har question ke beech {GAP_SECONDS} second ka gap.\n"
         f"🛑 Rokne ke liye /stop bhejo.\n\n"
         f"Apne answers ready rakho! 💪",
-        parse_mode="Markdown"
+        parse_mode="Markdown",
+        message_thread_id=thread_id,
     )
 
     sent = 0
@@ -329,7 +365,8 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"🛑 Quiz rok diya gaya.\n"
                 f"📊 Total {sent} questions bheje gaye the.\n\n"
                 f"Dobara shuru karne ke liye `/quiz {count}` bhejo.",
-                parse_mode="Markdown"
+                parse_mode="Markdown",
+                message_thread_id=thread_id,
             )
             return
 
@@ -341,7 +378,7 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
             continue
         used.add(qid)
 
-        if await send_one_quiz(chat_id, context, q):
+        if await send_one_quiz(chat_id, context, q, thread_id=thread_id):
             sent += 1
             if sent < count:
                 for _ in range(GAP_SECONDS):
@@ -350,7 +387,8 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             f"🛑 Quiz rok diya gaya.\n"
                             f"📊 Total {sent} questions bheje gaye the.\n\n"
                             f"Dobara shuru karne ke liye `/quiz {count}` bhejo.",
-                            parse_mode="Markdown"
+                            parse_mode="Markdown",
+                            message_thread_id=thread_id,
                         )
                         return
                     await asyncio.sleep(1)
@@ -364,26 +402,36 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📊 Total {sent} questions bheje gaye.\n"
         f"🔁 Aur practice ke liye `/quiz {count}` bhejo\n\n"
         f"📚 Powered by {BRAND_NAME}",
-        parse_mode="Markdown"
+        parse_mode="Markdown",
+        message_thread_id=thread_id,
     )
 
 
 async def stop_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Chalu quiz session ko rok do."""
     chat_id = update.effective_chat.id
+
+    thread_id = None
+    if update.effective_chat.is_forum:
+        thread_id = update.effective_message.message_thread_id
+        if thread_id == 1:
+            thread_id = None
+
     if chat_id in ACTIVE_SESSIONS:
         ACTIVE_SESSIONS.discard(chat_id)
         await update.message.reply_text(
             f"🛑 *Quiz session rok diya gaya.*\n\n"
             f"Dobara shuru karne ke liye `/quiz 10` bhejo.\n\n"
             f"📚 Powered by {BRAND_NAME}",
-            parse_mode="Markdown"
+            parse_mode="Markdown",
+            message_thread_id=thread_id,
         )
     else:
         await update.message.reply_text(
             "⚠️ Koi active quiz session nahi chal raha.\n"
             "Start karne ke liye `/quiz 10` bhejo.",
-            parse_mode="Markdown"
+            parse_mode="Markdown",
+            message_thread_id=thread_id,
         )
 
 
@@ -391,11 +439,9 @@ def main():
     if not BOT_TOKEN:
         raise SystemExit("BOT_TOKEN environment variable set karo.")
 
-    # HTTP server background thread mein (Render health check)
     http_thread = threading.Thread(target=run_http_server, daemon=True)
     http_thread.start()
 
-    # concurrent_updates(True) — MULTIPLE GROUPS EK SAATH
     app = (
         Application.builder()
         .token(BOT_TOKEN)
@@ -406,6 +452,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_cmd))
     app.add_handler(CommandHandler("chapters", chapters))
+    app.add_handler(CommandHandler("getids", getids))
     app.add_handler(CommandHandler("quiz", quiz))
     app.add_handler(CommandHandler("stop", stop_quiz))
     app.add_handler(PollAnswerHandler(poll_answer_handler))

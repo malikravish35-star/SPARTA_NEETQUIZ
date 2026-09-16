@@ -1,4 +1,4 @@
-import asyncio
+    import asyncio
 import json
 import os
 import random
@@ -43,9 +43,16 @@ SUBJECT_TIMING = {
 DEFAULT_TIMING = {"gap": 20, "poll_time": 20}
 
 # === THREAD IDs (per group, subject wise) ===
+# None = General topic
 THREAD_IDS = {
-    # -1001234567890: {"Physics": 2563, "Chemistry": 2565, "Biology": None},
+    -1004395462386: {
+        "Chemistry": 2563,    # Chemistry → topic 2563
+        "Biology": None,      # Biology → General
+        "Physics": None,      # Physics → General
+    },
 }
+
+# Fallback (jab group-specific entry na ho)
 DEFAULT_THREAD_IDS = {
     "Physics": None,
     "Chemistry": None,
@@ -148,7 +155,7 @@ POLL_TRACKER = {}
 # =========================================
 
 
-# === HTTP Server ===
+# === HTTP Server (Render health check) ===
 class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -173,6 +180,7 @@ def get_timing(subject):
 
 
 def get_thread_id(chat_id, subject):
+    """Per-group thread ID do; warna default."""
     group_threads = THREAD_IDS.get(chat_id, {})
     if subject in group_threads:
         return group_threads[subject]
@@ -180,6 +188,7 @@ def get_thread_id(chat_id, subject):
 
 
 def clean_text(text):
+    """HTML tags, LaTeX aur extra spaces hata do."""
     text = re.sub(r'<[^>]+>', '', text)
     text = re.sub(r'\$[^$]*\$', '', text)
     text = re.sub(r'\\[a-zA-Z]+\{[^}]*\}', '', text)
@@ -205,11 +214,8 @@ def build_progress_bar(percent, style, total_blocks=12):
     """Left-to-right fill hone wala progress bar."""
     filled = int((percent / 100) * total_blocks)
     empty = total_blocks - filled
-
-    # Left to right fill
     bar = style["color"] * filled + style["empty"] * empty
 
-    # Percentage ke saath emoji badalta hai
     if percent < 25:
         mood = "⏳"
     elif percent < 50:
@@ -229,11 +235,8 @@ def build_progress_bar(percent, style, total_blocks=12):
     )
 
 
-async def animate_loading(context, chat_id, thread_id, style_key, duration=2.0):
-    """
-    Loading animation message bhejo jo left->right fill hota hai.
-    duration = total seconds
-    """
+async def animate_loading(context, chat_id, thread_id, style_key, duration=2.5):
+    """Loading animation message jo left->right fill hota hai."""
     style = PROGRESS_STYLES.get(style_key, PROGRESS_STYLES["All"])
 
     try:
@@ -247,11 +250,10 @@ async def animate_loading(context, chat_id, thread_id, style_key, duration=2.0):
         logger.warning(f"Loading msg fail: {e}")
         return None
 
-    # Steps: 0, 10, 20, ... 100
     steps = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
     delay = duration / len(steps)
 
-    for pct in steps[1:]:  # 0 already bhej diya
+    for pct in steps[1:]:
         await asyncio.sleep(delay)
         try:
             await context.bot.edit_message_text(
@@ -263,10 +265,8 @@ async def animate_loading(context, chat_id, thread_id, style_key, duration=2.0):
         except Exception as e:
             logger.debug(f"Progress edit skip: {e}")
 
-    # Chhota sa pause (100% pe ruk ke dikhaye)
     await asyncio.sleep(0.4)
 
-    # Loading message delete karo (clean look)
     try:
         await context.bot.delete_message(chat_id=chat_id, message_id=msg.message_id)
     except Exception:
@@ -275,7 +275,7 @@ async def animate_loading(context, chat_id, thread_id, style_key, duration=2.0):
     return msg
 
 
-# ==== COMMANDS ====
+# ==== COMMAND HANDLERS ====
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -283,11 +283,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"_{BRAND_TAGLINE}_\n\n"
         "📖 *Commands:*\n"
         "▫️ `/quiz 10` - 10 random questions\n"
-        "▫️ `/biology 10` - Biology quiz\n"
-        "▫️ `/chemistry 10` - Chemistry quiz\n"
+        "▫️ `/quiz 10 mole` - Chapter wise quiz\n"
+        "▫️ `/quiz 10 chemistry` - Chemistry questions\n"
+        "▫️ `/quiz 10 biology` - Biology questions\n"
         "▫️ `/biology` - Biology chapters\n"
         "▫️ `/chemistry` - Chemistry chapters\n"
-        "▫️ `/quiz 10 mole` - Chapter wise\n"
+        "▫️ `/chapters` - All chapters\n"
         "▫️ `/stop` - Quiz rok do\n"
         "▫️ `/timing` - Subject timing\n"
         "▫️ `/help` - Madad\n\n"
@@ -302,15 +303,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📖 *Commands:*\n\n"
-        "*Subject commands:*\n"
-        "`/biology 10` - 10 Biology questions\n"
-        "`/biology` - Biology chapter list\n"
-        "`/chemistry 10` - 10 Chemistry questions\n"
-        "`/chemistry` - Chemistry chapter list\n\n"
-        "*Generic:*\n"
-        "`/quiz 10` - Random questions\n"
-        "`/quiz 10 mole` - Chapter filter\n"
+        "*Quiz commands:*\n"
+        "`/quiz 10` - 10 random questions\n"
+        "`/quiz 10 chemistry` - 10 Chemistry questions\n"
+        "`/quiz 10 biology` - 10 Biology questions\n"
+        "`/quiz 10 mole` - 10 questions mole chapter se\n"
         "`/quiz 50` - 50 questions\n\n"
+        "*Chapter lists:*\n"
+        "`/biology` - Biology chapters\n"
+        "`/chemistry` - Chemistry chapters\n"
+        "`/chapters` - Saare chapters\n\n"
         "*Others:*\n"
         "`/stop` - Quiz rok do\n"
         "`/timing` - Timing dekho\n\n"
@@ -324,12 +326,9 @@ async def chapters(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     thread_id = update.message.message_thread_id
 
-    # Animation chalao (2.5 seconds)
     asyncio.create_task(
         animate_loading(context, chat_id, thread_id, "All", duration=2.5)
     )
-
-    # Thoda wait karo animation ke saath sync ke liye
     await asyncio.sleep(2.6)
 
     chapters_set = set(q.get("chapter", "Unknown") for q in QUESTIONS)
@@ -338,109 +337,70 @@ async def chapters(update: Update, context: ContextTypes.DEFAULT_TYPE):
         chapters_list = chapters_list[:4000] + "\n...(aur bhi hain)"
 
     await update.message.reply_text(
-        f"📚 *All Chapters:*\n\n{chapters_list}",
+        f"📚 *All Chapters:*\n\n{chapters_list}\n\n"
+        f"📝 *Quiz ke liye:* `/quiz 10 chapter name`",
         parse_mode="Markdown"
     )
 
 
 async def biology_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    args = context.args or []
+    """Biology command - sirf chapter list dikhaye."""
     chat_id = update.effective_chat.id
     thread_id = update.message.message_thread_id
 
-    if not args:
-        # Animation chalao
-        asyncio.create_task(
-            animate_loading(context, chat_id, thread_id, "Biology", duration=2.5)
-        )
-        await asyncio.sleep(2.6)
+    # Animation
+    asyncio.create_task(
+        animate_loading(context, chat_id, thread_id, "Biology", duration=2.5)
+    )
+    await asyncio.sleep(2.6)
 
-        chapters_set = set(
-            q.get("chapter", "Unknown")
-            for q in QUESTIONS if q.get("subject") == "Biology"
-        )
-        if not chapters_set:
-            await update.message.reply_text("❌ Biology ke questions nahi mile.")
-            return
-        chapters_list = "\n".join(f"• {c}" for c in sorted(chapters_set))
-        if len(chapters_list) > 4000:
-            chapters_list = chapters_list[:4000] + "\n...(aur bhi hain)"
-        await update.message.reply_text(
-            f"🧬 *Biology Chapters:*\n\n{chapters_list}\n\n"
-            f"_Quiz ke liye:_ `/biology 10`\n"
-            f"_Chapter wise:_ `/biology 10 chapter name`",
-            parse_mode="Markdown"
-        )
+    chapters_set = set(
+        q.get("chapter", "Unknown")
+        for q in QUESTIONS if q.get("subject") == "Biology"
+    )
+    if not chapters_set:
+        await update.message.reply_text("❌ Biology ke questions nahi mile.")
         return
+    chapters_list = "\n".join(f"• {c}" for c in sorted(chapters_set))
+    if len(chapters_list) > 4000:
+        chapters_list = chapters_list[:4000] + "\n...(aur bhi hain)"
 
-    await run_subject_quiz(update, context, "Biology")
+    await update.message.reply_text(
+        f"🧬 *Biology Chapters:*\n\n{chapters_list}\n\n"
+        f"📝 *Quiz ke liye:* `/quiz 10` (random)\n"
+        f"📖 *Chapter wise:* `/quiz 10 chapter name`\n"
+        f"⏱️ Biology: 15 sec per question",
+        parse_mode="Markdown"
+    )
 
 
 async def chemistry_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    args = context.args or []
+    """Chemistry command - sirf chapter list dikhaye."""
     chat_id = update.effective_chat.id
     thread_id = update.message.message_thread_id
 
-    if not args:
-        asyncio.create_task(
-            animate_loading(context, chat_id, thread_id, "Chemistry", duration=2.5)
-        )
-        await asyncio.sleep(2.6)
+    asyncio.create_task(
+        animate_loading(context, chat_id, thread_id, "Chemistry", duration=2.5)
+    )
+    await asyncio.sleep(2.6)
 
-        chapters_set = set(
-            q.get("chapter", "Unknown")
-            for q in QUESTIONS if q.get("subject") == "Chemistry"
-        )
-        if not chapters_set:
-            await update.message.reply_text("❌ Chemistry ke questions nahi mile.")
-            return
-        chapters_list = "\n".join(f"• {c}" for c in sorted(chapters_set))
-        if len(chapters_list) > 4000:
-            chapters_list = chapters_list[:4000] + "\n...(aur bhi hain)"
-        await update.message.reply_text(
-            f"⚗️ *Chemistry Chapters:*\n\n{chapters_list}\n\n"
-            f"_Quiz ke liye:_ `/chemistry 10`\n"
-            f"_Chapter wise:_ `/chemistry 10 chapter name`",
-            parse_mode="Markdown"
-        )
+    chapters_set = set(
+        q.get("chapter", "Unknown")
+        for q in QUESTIONS if q.get("subject") == "Chemistry"
+    )
+    if not chapters_set:
+        await update.message.reply_text("❌ Chemistry ke questions nahi mile.")
         return
+    chapters_list = "\n".join(f"• {c}" for c in sorted(chapters_set))
+    if len(chapters_list) > 4000:
+        chapters_list = chapters_list[:4000] + "\n...(aur bhi hain)"
 
-    await run_subject_quiz(update, context, "Chemistry")
-
-
-async def run_subject_quiz(update, context, subject):
-    args = context.args or []
-    count = 10
-    filter_text = None
-
-    if args and args[0].isdigit():
-        count = int(args[0])
-        if len(args) > 1:
-            filter_text = " ".join(args[1:]).strip()
-    elif args:
-        filter_text = " ".join(args).strip()
-
-    if count < 1:
-        count = 1
-    if count > MAX_QUESTIONS:
-        count = MAX_QUESTIONS
-
-    pool = [q for q in QUESTIONS if q.get("subject") == subject]
-
-    if filter_text:
-        pool = [q for q in pool if filter_text.lower() in q.get("chapter", "").lower()]
-
-    if not pool:
-        await update.message.reply_text(
-            f"❌ {subject} mein '{filter_text or 'koi'}' chapter nahi mila.\n"
-            f"`/{subject.lower()}` se chapter list dekho.",
-            parse_mode="Markdown"
-        )
-        return
-
-    await _start_quiz_session(
-        update, context, pool, count,
-        f"{subject}" + (f" - {filter_text}" if filter_text else "")
+    await update.message.reply_text(
+        f"⚗️ *Chemistry Chapters:*\n\n{chapters_list}\n\n"
+        f"📝 *Quiz ke liye:* `/quiz 10` (random)\n"
+        f"📖 *Chapter wise:* `/quiz 10 chapter name`\n"
+        f"⏱️ Chemistry: 40 sec per question",
+        parse_mode="Markdown"
     )
 
 
@@ -489,7 +449,7 @@ async def send_one_quiz(chat_id, context, q):
             "correct_option_id": answer,
             "thread_id": thread_id,
         }
-        logger.info(f"Poll sent: {subject} | timer: {poll_time}s")
+        logger.info(f"Poll sent: {subject} | timer: {poll_time}s | thread: {thread_id}")
         return True
     except Exception as e:
         logger.error(f"Poll send error: {e}")
@@ -636,81 +596,4 @@ async def _start_quiz_session(update, context, pool, count, filter_text=None):
                     if chat_id not in ACTIVE_SESSIONS:
                         await update.message.reply_text(
                             f"🛑 Quiz rok diya gaya.\n"
-                            f"📊 Total {sent} questions bheje gaye the.\n\n"
-                            f"Dobara shuru karne ke liye `/quiz {count}` bhejo.",
-                            parse_mode="Markdown"
-                        )
-                        return
-                    await asyncio.sleep(1)
-        else:
-            await asyncio.sleep(0.5)
-
-    ACTIVE_SESSIONS.pop(chat_id, None)
-
-    await update.message.reply_text(
-        f"✅ *Quiz Complete!*\n\n"
-        f"📊 Total {sent} questions bheje gaye.\n"
-        f"🔁 Aur practice ke liye `/quiz {count}` bhejo\n\n"
-        f"📚 Powered by {BRAND_NAME}",
-        parse_mode="Markdown"
-    )
-
-
-async def stop_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    if chat_id in ACTIVE_SESSIONS:
-        ACTIVE_SESSIONS.pop(chat_id, None)
-        await update.message.reply_text(
-            f"🛑 *Quiz session rok diya gaya.*\n\n"
-            f"Dobara shuru karne ke liye `/quiz 10` bhejo.\n\n"
-            f"📚 Powered by {BRAND_NAME}",
-            parse_mode="Markdown"
-        )
-    else:
-        await update.message.reply_text(
-            "⚠️ Koi active quiz session nahi chal raha.\n"
-            "Start karne ke liye `/quiz 10` bhejo.",
-            parse_mode="Markdown"
-        )
-
-
-# ==== MAIN ====
-
-def main():
-    if not BOT_TOKEN:
-        raise SystemExit("BOT_TOKEN environment variable set karo.")
-
-    http_thread = threading.Thread(target=run_http_server, daemon=True)
-    http_thread.start()
-
-    app = (
-        Application.builder()
-        .token(BOT_TOKEN)
-        .concurrent_updates(True)
-        .build()
-    )
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("help", help_cmd))
-    app.add_handler(CommandHandler("quiz", quiz))
-    app.add_handler(CommandHandler("biology", biology_cmd))
-    app.add_handler(CommandHandler("chemistry", chemistry_cmd))
-    app.add_handler(CommandHandler("stop", stop_quiz))
-    app.add_handler(CommandHandler("chapters", chapters))
-    app.add_handler(CommandHandler("timing", timing_cmd))
-    app.add_handler(PollAnswerHandler(poll_answer_handler))
-
-    logger.info(f"🚀 {BRAND_NAME} bot start ho raha hai...")
-    logger.info(f"📚 Total questions: {len(QUESTIONS)}")
-    logger.info("⏱️  Biology: 15s | Chemistry: 40s | Physics: 20s")
-    logger.info("🎬 Progress bar animation active!")
-    logger.info("👥 Multi-group support active!")
-
-    app.run_polling(
-        allowed_updates=Update.ALL_TYPES,
-        drop_pending_updates=True,
-    )
-
-
-if __name__ == "__main__":
-    main()
+                         

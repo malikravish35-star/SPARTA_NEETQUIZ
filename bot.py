@@ -38,6 +38,8 @@ SUBJECT_TIMING = {
 }
 DEFAULT_TIMING = {"gap": 20, "poll_time": 20}
 
+# === THREAD IDs (per group, subject wise) ===
+# Sirf yahi groups Chemistry kar sakte hain
 THREAD_IDS = {
     -1004395462386: {
         "Chemistry": 2565,
@@ -162,6 +164,14 @@ def stop_session(chat_id, user_id=None, thread_id=None):
         ACTIVE_SESSIONS.discard(session_key(chat_id, user_id, thread_id))
 
 
+def is_chemistry_allowed(chat_id):
+    """Sirf whitelisted groups Chemistry kar sakte hain."""
+    if chat_id not in THREAD_IDS:
+        return False
+    entry = THREAD_IDS[chat_id]
+    return entry.get("Chemistry") is not None
+
+
 class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -281,14 +291,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📖 *Commands:*\n"
         "▫️ /quiz 10 - 10 random questions\n"
         "▫️ /quiz 10 mole - Chapter wise quiz\n"
-        "▫️ /quiz 10 chemistry - Chemistry questions\n"
-        "▫️ /quiz 10 biology - Biology questions\n"
-        "▫️ /biology - Biology chapters\n"
-        "▫️ /chemistry - Chemistry chapters\n"
+        "▫️ /biology - Biology quiz\n"
+        "▫️ /chemistry - Chemistry quiz\n"
+        "▫️ /biology_chapters - Biology chapters\n"
+        "▫️ /chemistry_chapters - Chemistry chapters\n"
         "▫️ /chapters - All chapters\n"
         "▫️ /stop - Quiz rok do\n"
         "▫️ /timing - Subject timing\n"
-        "▫️ /myid - Group ki ID\n"
+        "▫️ /getid - Group ki ID\n"
         "▫️ /help - Madad\n\n"
         "⏱️ *Timing:*\n"
         "🧬 Biology: 15 sec\n"
@@ -308,19 +318,19 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/quiz 10 mole - 10 questions mole chapter se\n"
         "/quiz 50 - 50 questions\n\n"
         "*Chapter lists:*\n"
-        "/biology - Biology chapters\n"
-        "/chemistry - Chemistry chapters\n"
+        "/biology_chapters - Biology chapters\n"
+        "/chemistry_chapters - Chemistry chapters\n"
         "/chapters - Saare chapters\n\n"
         "*Others:*\n"
         "/stop - Quiz rok do\n"
         "/timing - Timing dekho\n"
-        "/myid - Group ID dekho\n\n"
+        "/getid - Group ID dekho\n\n"
         "✨ Har topic mein alag quiz parallel chal sakta hai!",
         parse_mode="Markdown"
     )
 
 
-async def myid_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def getid_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     msg = update.message
     user = update.effective_user
@@ -339,12 +349,20 @@ async def chapters(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     thread_id = update.message.message_thread_id
 
+    # Chemistry allowed check
+    all_subjects = ["Biology"]
+    if is_chemistry_allowed(chat_id):
+        all_subjects.append("Chemistry")
+
     asyncio.create_task(
         animate_loading(context, chat_id, thread_id, "All", duration=2.5)
     )
     await asyncio.sleep(2.6)
 
-    chapters_set = set(q.get("chapter", "Unknown") for q in QUESTIONS)
+    chapters_set = set(
+        q.get("chapter", "Unknown")
+        for q in QUESTIONS if q.get("subject") in all_subjects
+    )
     chapters_list = "\n".join(f"• {c}" for c in sorted(chapters_set))
     if len(chapters_list) > 4000:
         chapters_list = chapters_list[:4000] + "\n...(aur bhi hain)"
@@ -357,6 +375,17 @@ async def chapters(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def biology_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Biology quiz command."""
+    args = context.args or []
+    if not args:
+        # Bio chapters dikhao
+        await biology_chapters_cmd(update, context)
+        return
+    await run_subject_quiz(update, context, "Biology")
+
+
+async def biology_chapters_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Biology chapters list."""
     chat_id = update.effective_chat.id
     thread_id = update.message.message_thread_id
 
@@ -379,7 +408,7 @@ async def biology_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         f"🧬 *Biology Chapters:*\n\n{chapters_list}\n\n"
-        f"📝 Quiz ke liye: /quiz 10 (random)\n"
+        f"📝 Quiz ke liye: /biology 10\n"
         f"📖 Chapter wise: /quiz 10 chapter name\n"
         f"⏱️ Biology: 15 sec per question",
         parse_mode="Markdown"
@@ -387,8 +416,33 @@ async def biology_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def chemistry_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Chemistry quiz command."""
+    chat_id = update.effective_chat.id
+
+    if not is_chemistry_allowed(chat_id):
+        await update.message.reply_text(
+            "⛔ Chemistry quiz is group mein allowed nahi hai.\n"
+            "Sirf khaas groups mein hi Chemistry available hai."
+        )
+        return
+
+    args = context.args or []
+    if not args:
+        await chemistry_chapters_cmd(update, context)
+        return
+    await run_subject_quiz(update, context, "Chemistry")
+
+
+async def chemistry_chapters_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Chemistry chapters list."""
     chat_id = update.effective_chat.id
     thread_id = update.message.message_thread_id
+
+    if not is_chemistry_allowed(chat_id):
+        await update.message.reply_text(
+            "⛔ Chemistry is group mein allowed nahi hai."
+        )
+        return
 
     asyncio.create_task(
         animate_loading(context, chat_id, thread_id, "Chemistry", duration=2.5)
@@ -409,11 +463,55 @@ async def chemistry_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         f"⚗️ *Chemistry Chapters:*\n\n{chapters_list}\n\n"
-        f"📝 Quiz ke liye: /quiz 10 (random)\n"
+        f"📝 Quiz ke liye: /chemistry 10\n"
         f"📖 Chapter wise: /quiz 10 chapter name\n"
         f"⏱️ Chemistry: 40 sec per question",
         parse_mode="Markdown"
     )
+
+
+async def run_subject_quiz(update, context, subject):
+    """Subject-specific quiz start karo."""
+    chat_id = update.effective_chat.id
+    user_id = update.effective_user.id
+    thread_id = update.message.message_thread_id
+
+    if is_session_running(chat_id, user_id, thread_id):
+        await update.message.reply_text(
+            "⚠️ Aapka ek quiz session is topic mein pehle se chal raha hai.\n"
+            "Rokne ke liye /stop bhejo."
+        )
+        return
+
+    args = context.args or []
+    count = 10
+    filter_text = None
+
+    if args and args[0].isdigit():
+        count = int(args[0])
+        if len(args) > 1:
+            filter_text = " ".join(args[1:]).strip()
+    elif args:
+        filter_text = " ".join(args).strip()
+
+    if count < 1:
+        count = 1
+    if count > MAX_QUESTIONS:
+        count = MAX_QUESTIONS
+
+    pool = [q for q in QUESTIONS if q.get("subject") == subject]
+
+    if filter_text:
+        pool = [q for q in pool if filter_text.lower() in q.get("chapter", "").lower()]
+
+    if not pool:
+        await update.message.reply_text(
+            f"{subject} mein '{filter_text or 'koi'}' chapter nahi mila.\n"
+            f"Chapters dekhne ke liye /{subject.lower()}_chapters bhejo."
+        )
+        return
+
+    await _start_quiz_session(update, context, pool, count, f"{subject}" + (f" - {filter_text}" if filter_text else ""))
 
 
 async def timing_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -531,6 +629,13 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if count > MAX_QUESTIONS:
         count = MAX_QUESTIONS
 
+    # Chemistry allowed check
+    if filter_text and "chem" in filter_text.lower() and not is_chemistry_allowed(chat_id):
+        await update.message.reply_text(
+            "⛔ Chemistry quiz is group mein allowed nahi hai."
+        )
+        return
+
     if filter_text:
         pool = [q for q in QUESTIONS if matches_filter(q, filter_text)]
         if not pool:
@@ -541,6 +646,15 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
     else:
         pool = QUESTIONS
+
+    # Chemistry filter (agar group whitelisted nahi)
+    if not is_chemistry_allowed(chat_id):
+        pool = [q for q in pool if q.get("subject") != "Chemistry"]
+        if not pool:
+            await update.message.reply_text(
+                "⛔ Is group mein sirf Biology available hai."
+            )
+            return
 
     if count == 1:
         for _ in range(5):
@@ -669,10 +783,12 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_cmd))
-    app.add_handler(CommandHandler("myid", myid_cmd))
+    app.add_handler(CommandHandler("getid", getid_cmd))
     app.add_handler(CommandHandler("quiz", quiz))
     app.add_handler(CommandHandler("biology", biology_cmd))
     app.add_handler(CommandHandler("chemistry", chemistry_cmd))
+    app.add_handler(CommandHandler("biology_chapters", biology_chapters_cmd))
+    app.add_handler(CommandHandler("chemistry_chapters", chemistry_chapters_cmd))
     app.add_handler(CommandHandler("stop", stop_quiz))
     app.add_handler(CommandHandler("chapters", chapters))
     app.add_handler(CommandHandler("timing", timing_cmd))
@@ -680,6 +796,7 @@ def main():
 
     logger.info(f"Bot start ho raha hai...")
     logger.info(f"Total questions: {len(QUESTIONS)}")
+    logger.info(f"Chemistry allowed groups: {[k for k, v in THREAD_IDS.items() if v.get('Chemistry') is not None]}")
     logger.info("Multi-group + multi-topic + multi-user parallel support active!")
 
     app.run_polling(

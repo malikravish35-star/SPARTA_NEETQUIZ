@@ -40,7 +40,7 @@ DEFAULT_TIMING = {"gap": 20, "poll_time": 20}
 
 THREAD_IDS = {
     -1004395462386: {
-        "Chemistry": 2563,
+        "Chemistry": 2565,
         "Biology": None,
         "Physics": None,
     },

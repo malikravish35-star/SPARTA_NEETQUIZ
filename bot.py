@@ -136,8 +136,30 @@ except Exception as e:
 
 logger.info(f"TOTAL: {len(QUESTIONS)} questions loaded")
 
-ACTIVE_SESSIONS = {}
+# Per-user per-chat sessions (allows parallel multi-group + multi-user)
+ACTIVE_SESSIONS = set()
 POLL_TRACKER = {}
+
+
+def session_key(chat_id, user_id):
+    return (chat_id, user_id)
+
+
+def is_session_running(chat_id, user_id):
+    return session_key(chat_id, user_id) in ACTIVE_SESSIONS
+
+
+def start_session(chat_id, user_id):
+    ACTIVE_SESSIONS.add(session_key(chat_id, user_id))
+
+
+def stop_session(chat_id, user_id=None):
+    if user_id is None:
+        to_remove = [s for s in ACTIVE_SESSIONS if s[0] == chat_id]
+        for s in to_remove:
+            ACTIVE_SESSIONS.discard(s)
+    else:
+        ACTIVE_SESSIONS.discard(session_key(chat_id, user_id))
 
 
 class HealthHandler(BaseHTTPRequestHandler):
@@ -266,6 +288,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "▫️ /chapters - All chapters\n"
         "▫️ /stop - Quiz rok do\n"
         "▫️ /timing - Subject timing\n"
+        "▫️ /myid - Group ki ID\n"
         "▫️ /help - Madad\n\n"
         "⏱️ *Timing:*\n"
         "🧬 Biology: 15 sec\n"
@@ -290,10 +313,26 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/chapters - Saare chapters\n\n"
         "*Others:*\n"
         "/stop - Quiz rok do\n"
-        "/timing - Timing dekho\n\n"
+        "/timing - Timing dekho\n"
+        "/myid - Group ID dekho\n\n"
         "✨ Chapter list load hote waqt progress bar animation dikhega!",
         parse_mode="Markdown"
     )
+
+
+async def myid_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat = update.effective_chat
+    msg = update.message
+    user = update.effective_user
+    text = (
+        f"📋 *Group Info:*\n\n"
+        f"Chat ID: `{chat.id}`\n"
+        f"Chat Title: {chat.title or 'N/A'}\n"
+        f"Chat Type: {chat.type}\n"
+        f"Thread ID: `{msg.message_thread_id}`\n"
+        f"User ID: `{user.id}`\n"
+    )
+    await update.message.reply_text(text, parse_mode="Markdown")
 
 
 async def chapters(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -404,8 +443,6 @@ async def send_one_quiz(chat_id, context, q):
     timing = get_timing(subject)
     poll_time = timing["poll_time"]
 
-    logger.info(f"SENDING POLL -> chat_id={chat_id} | subject={subject} | thread_id={thread_id} | type={type(thread_id).__name__}")
-
     try:
         msg = await context.bot.send_poll(
             chat_id=chat_id,
@@ -422,7 +459,7 @@ async def send_one_quiz(chat_id, context, q):
             "correct_option_id": answer,
             "thread_id": thread_id,
         }
-        logger.info(f"Poll sent successfully | message_id={msg.message_id}")
+        logger.info(f"Poll sent: {subject} | chat: {chat_id} | thread: {thread_id}")
         return True
     except Exception as e:
         logger.error(f"Poll send error: {type(e).__name__}: {e}")
@@ -467,10 +504,11 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     chat_id = update.effective_chat.id
+    user_id = update.effective_user.id
 
-    if chat_id in ACTIVE_SESSIONS:
+    if is_session_running(chat_id, user_id):
         await update.message.reply_text(
-            "Ek quiz session pehle se chal raha hai.\n"
+            "⚠️ Aapka ek quiz session pehle se chal raha hai.\n"
             "Rokne ke liye /stop bhejo."
         )
         return
@@ -516,15 +554,16 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def _start_quiz_session(update, context, pool, count, filter_text=None):
     chat_id = update.effective_chat.id
+    user_id = update.effective_user.id
 
-    if chat_id in ACTIVE_SESSIONS:
+    if is_session_running(chat_id, user_id):
         await update.message.reply_text(
-            "Ek quiz session pehle se chal raha hai.\n"
+            "⚠️ Aapka ek quiz session pehle se chal raha hai.\n"
             "Rokne ke liye /stop bhejo."
         )
         return
 
-    ACTIVE_SESSIONS[chat_id] = True
+    start_session(chat_id, user_id)
     filter_msg = ""
     if filter_text:
         filter_msg = f"📖 {filter_text.title()}\n"
@@ -544,7 +583,7 @@ async def _start_quiz_session(update, context, pool, count, filter_text=None):
     used = set()
 
     while sent < count and attempts < count * 5:
-        if chat_id not in ACTIVE_SESSIONS:
+        if not is_session_running(chat_id, user_id):
             await update.message.reply_text(
                 f"🛑 Quiz rok diya gaya.\n"
                 f"📊 Total {sent} questions bheje gaye the.\n\n"
@@ -566,9 +605,9 @@ async def _start_quiz_session(update, context, pool, count, filter_text=None):
             if sent < count:
                 subject = q.get("subject", "Biology")
                 gap = get_timing(subject)["gap"]
-                logger.info(f"Waiting {gap}s before next question...")
+                logger.info(f"Waiting {gap}s | chat: {chat_id} | user: {user_id}")
                 for _ in range(gap):
-                    if chat_id not in ACTIVE_SESSIONS:
+                    if not is_session_running(chat_id, user_id):
                         await update.message.reply_text(
                             f"🛑 Quiz rok diya gaya.\n"
                             f"📊 Total {sent} questions bheje gaye the.\n\n"
@@ -580,7 +619,7 @@ async def _start_quiz_session(update, context, pool, count, filter_text=None):
         else:
             await asyncio.sleep(0.5)
 
-    ACTIVE_SESSIONS.pop(chat_id, None)
+    stop_session(chat_id, user_id)
 
     await update.message.reply_text(
         f"✅ *Quiz Complete!*\n\n"
@@ -593,10 +632,12 @@ async def _start_quiz_session(update, context, pool, count, filter_text=None):
 
 async def stop_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
-    if chat_id in ACTIVE_SESSIONS:
-        ACTIVE_SESSIONS.pop(chat_id, None)
+    user_id = update.effective_user.id
+
+    if is_session_running(chat_id, user_id):
+        stop_session(chat_id, user_id)
         await update.message.reply_text(
-            f"🛑 *Quiz session rok diya gaya.*\n\n"
+            f"🛑 *Aapka quiz session rok diya gaya.*\n\n"
             f"Dobara shuru karne ke liye /quiz 10 bhejo.\n\n"
             f"📚 Powered by {BRAND_NAME}",
             parse_mode="Markdown"
@@ -625,6 +666,7 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_cmd))
+    app.add_handler(CommandHandler("myid", myid_cmd))
     app.add_handler(CommandHandler("quiz", quiz))
     app.add_handler(CommandHandler("biology", biology_cmd))
     app.add_handler(CommandHandler("chemistry", chemistry_cmd))
@@ -635,9 +677,7 @@ def main():
 
     logger.info(f"Bot start ho raha hai...")
     logger.info(f"Total questions: {len(QUESTIONS)}")
-    logger.info("Biology: 15s | Chemistry: 40s | Physics: 20s")
-    logger.info("Multi-group support active!")
-    logger.info("Progress bar animation active!")
+    logger.info("Multi-group + multi-user parallel support active!")
 
     app.run_polling(
         allowed_updates=Update.ALL_TYPES,

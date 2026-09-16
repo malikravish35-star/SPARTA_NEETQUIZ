@@ -51,58 +51,67 @@ DEFAULT_THREAD_IDS = {
     "Chemistry": None,
     "Biology": None,
 }
+
+PROGRESS_STYLES = {
+    "Biology": {"emoji": "🧬", "color": "🟩", "empty": "⬜", "label": "Biology"},
+    "Chemistry": {"emoji": "⚗️", "color": "🟧", "empty": "⬜", "label": "Chemistry"},
+    "Physics": {"emoji": "⚛️", "color": "🟦", "empty": "⬜", "label": "Physics"},
+    "All": {"emoji": "📚", "color": "🟪", "empty": "⬜", "label": "Chapters"},
+}
+
 QUOTES = [
-    "🌟 *Shabash!* Consistency hi success ki chaabi hai. Aise hi lagay raho!",
-    "🔥 *Kya baat!* Aaj ki mehnat kal ka selection hai. Keep going!",
-    "💪 *Excellent!* Topper banna hai toh aise hi practice karo!",
-    "🎯 *Perfect!* Har sahi answer tumhe selection ke aur kareeb le jata hai.",
-    "🚀 *Zabardast!* Sapna aise hi poora hota hai!",
-    "⭐ *Great job!* Legend bhi daily practice se hi banta hai.",
-    "🏆 *Superb!* Aaj ka effort, kal ki success. Aise hi ladte raho!",
-    "🧠 *Smart move!* Concept clear, answer correct. Yehi formula hai!",
-    "💡 *Right answer!* Aise hi focus chahiye!",
-    "🎓 *Well done!* Manzil mushkil hai, lekin tum kar sakte ho!",
-    "🌱 *Good!* Chhote-chhote steps se hi bada safar tay hota hai.",
-    "⚡ *Fast and correct!* Yehi speed exam mein kaam aayegi!",
-    "🔥 *Aag laga di!* Aise hi consistent raho, selection pakka hai!",
-    "💎 *Heera ho tum!* Mehnat se hi chamakta hai asli talent.",
-    "🦁 *Sher ho tum!* Exam hall mein bhi aise hi dahaadna!",
-    "🌟 *Brilliant!* Aaj ka hard work kal ki seat banega!",
-    "🎖️ *Champion!* Har din practice karo, rank apne aap aayegi!",
-    "🚀 *Rocket speed!* Aise hi solve karte raho, time bachega!",
-    "💯 *Perfect score!* Concept crystal clear hai, aur kya chahiye!",
-    "🎯 *Target hit!* Aise hi accuracy build karo!",
-    "🔥 *Josh high!* Ye energy exam tak banaye rakho!",
-    "💪 *Mental power!* Aise hi focus karo, distraction bhaga do!",
-    "🌟 *Star ho tum!* Topper banne ka sapna sach hoga!",
-    "📚 *Padhai ka josh!* Aise hi hours badhao, success milegi!",
-    "⏰ *Time master!* Speed aur accuracy dono perfect!",
-    "🧠 *Sharp mind!* Aise hi tricky questions solve karte raho!",
-    "🏅 *Medal jeeta!* Har correct answer ek medal hai!",
-    "🚀 *Sky is limit!* Aise hi practice karo, kuch bhi possible hai!",
-    "💡 *Idea guru!* Concept clear, answer correct, aur kya!",
-    "🎓 *Future topper!* Aise hi lagay raho!",
-    "🌈 *Colourful mind!* Har chapter ka rang alag, aise hi samjho!",
-    "🍀 *Lucky bhi, smart bhi!* Mehnat se hi luck banate ho!",
-    "🔥 *Blazing speed!* Aise hi solve karo, time kam nahi padega!",
-    "💥 *Dhamaka!* Answer correct, mind sharp!",
-    "🎯 *Bull's eye!* Perfect aim, perfect answer!",
-    "🏆 *Winner ho!* Aise hi lade raho, trophy tumhari hai!",
-    "🌟 *Rising star!* Har din better ban rahe ho!",
-    "💪 *Iron will!* Consistency hi asli power hai!",
-    "🚀 *Success ke raaste pe!* Aise hi chalo, manzil door nahi!",
-    "🧠 *Mastermind!* Aise hi socho, aise hi solve karo!",
-    "💎 *Diamond ban rahe ho!* Pressure se hi diamond banta hai!",
-    "🔥 *Fire hai tum mein!* Aise hi jalte raho, success milegi!",
-    "🎖️ *Topper material!* Aise hi lagay raho, rank aayegi!",
-    "🌈 *Umeed ki kiran!* Har answer ek step hai selection ke taraf!",
-    "💯 *Perfect!* Aise hi chalo, selection hoga!",
-    "⭐ *Shining star!* Tumhari mehnat rang laayegi!",
-    "🎯 *On target!* Aise hi karte raho, rank apne aap aayegi!",
-    "💪 *Unstoppable!* Koi tumhe rok nahi sakta!",
-    "🌟 *Boss ho tum!* Aise hi dominate karo!",
-    "🔥 *Full josh!* Mehnat ka fal zaroor milega!",
+    "🌟 Shabash! Consistency hi success ki chaabi hai. Aise hi lagay raho!",
+    "🔥 Kya baat! Aaj ki mehnat kal ka selection hai. Keep going!",
+    "💪 Excellent! Topper banna hai toh aise hi practice karo!",
+    "🎯 Perfect! Har sahi answer tumhe selection ke aur kareeb le jata hai.",
+    "🚀 Zabardast! Sapna aise hi poora hota hai!",
+    "⭐ Great job! Legend bhi daily practice se hi banta hai.",
+    "🏆 Superb! Aaj ka effort, kal ki success. Aise hi ladte raho!",
+    "🧠 Smart move! Concept clear, answer correct. Yehi formula hai!",
+    "💡 Right answer! Aise hi focus chahiye!",
+    "🎓 Well done! Manzil mushkil hai, lekin tum kar sakte ho!",
+    "🌱 Good! Chhote-chhote steps se hi bada safar tay hota hai.",
+    "⚡ Fast and correct! Yehi speed exam mein kaam aayegi!",
+    "🔥 Aag laga di! Aise hi consistent raho, selection pakka hai!",
+    "💎 Heera ho tum! Mehnat se hi chamakta hai asli talent.",
+    "🦁 Sher ho tum! Exam hall mein bhi aise hi dahaadna!",
+    "🌟 Brilliant! Aaj ka hard work kal ki seat banega!",
+    "🎖️ Champion! Har din practice karo, rank apne aap aayegi!",
+    "🚀 Rocket speed! Aise hi solve karte raho, time bachega!",
+    "💯 Perfect score! Concept crystal clear hai, aur kya chahiye!",
+    "🎯 Target hit! Aise hi accuracy build karo!",
+    "🔥 Josh high! Ye energy exam tak banaye rakho!",
+    "💪 Mental power! Aise hi focus karo, distraction bhaga do!",
+    "🌟 Star ho tum! Topper banne ka sapna sach hoga!",
+    "📚 Padhai ka josh! Aise hi hours badhao, success milegi!",
+    "⏰ Time master! Speed aur accuracy dono perfect!",
+    "🧠 Sharp mind! Aise hi tricky questions solve karte raho!",
+    "🏅 Medal jeeta! Har correct answer ek medal hai!",
+    "🚀 Sky is limit! Aise hi practice karo, kuch bhi possible hai!",
+    "💡 Idea guru! Concept clear, answer correct, aur kya!",
+    "🎓 Future topper! Aise hi lagay raho!",
+    "🌈 Colourful mind! Har chapter ka rang alag, aise hi samjho!",
+    "🍀 Lucky bhi, smart bhi! Mehnat se hi luck banate ho!",
+    "🔥 Blazing speed! Aise hi solve karo, time kam nahi padega!",
+    "💥 Dhamaka! Answer correct, mind sharp!",
+    "🎯 Bull's eye! Perfect aim, perfect answer!",
+    "🏆 Winner ho! Aise hi lade raho, trophy tumhari hai!",
+    "🌟 Rising star! Har din better ban rahe ho!",
+    "💪 Iron will! Consistency hi asli power hai!",
+    "🚀 Success ke raaste pe! Aise hi chalo, manzil door nahi!",
+    "🧠 Mastermind! Aise hi socho, aise hi solve karo!",
+    "💎 Diamond ban rahe ho! Pressure se hi diamond banta hai!",
+    "🔥 Fire hai tum mein! Aise hi jalte raho, success milegi!",
+    "🎖️ Topper material! Aise hi lagay raho, rank aayegi!",
+    "🌈 Umeed ki kiran! Har answer ek step hai selection ke taraf!",
+    "💯 Perfect! Aise hi chalo, selection hoga!",
+    "⭐ Shining star! Tumhari mehnat rang laayegi!",
+    "🎯 On target! Aise hi karte raho, rank apne aap aayegi!",
+    "💪 Unstoppable! Koi tumhe rok nahi sakta!",
+    "🌟 Boss ho tum! Aise hi dominate karo!",
+    "🔥 Full josh! Mehnat ka fal zaroor milega!",
 ]
+
 QUESTIONS = []
 
 try:
@@ -178,7 +187,9 @@ def matches_filter(q, filter_text):
     if filter_lower in chapter:
         return True
     return False
-    def build_progress_bar(percent, style, total_blocks=12):
+
+
+def build_progress_bar(percent, style, total_blocks=12):
     filled = int((percent / 100) * total_blocks)
     empty = total_blocks - filled
     bar = style["color"] * filled + style["empty"] * empty
@@ -246,16 +257,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🎯 *{BRAND_NAME}* mein aapka swagat!\n"
         f"_{BRAND_TAGLINE}_\n\n"
         "📖 *Commands:*\n"
-        "▫️ `/quiz 10` - 10 random questions\n"
-        "▫️ `/quiz 10 mole` - Chapter wise quiz\n"
-        "▫️ `/quiz 10 chemistry` - Chemistry questions\n"
-        "▫️ `/quiz 10 biology` - Biology questions\n"
-        "▫️ `/biology` - Biology chapters\n"
-        "▫️ `/chemistry` - Chemistry chapters\n"
-        "▫️ `/chapters` - All chapters\n"
-        "▫️ `/stop` - Quiz rok do\n"
-        "▫️ `/timing` - Subject timing\n"
-        "▫️ `/help` - Madad\n\n"
+        "▫️ /quiz 10 - 10 random questions\n"
+        "▫️ /quiz 10 mole - Chapter wise quiz\n"
+        "▫️ /quiz 10 chemistry - Chemistry questions\n"
+        "▫️ /quiz 10 biology - Biology questions\n"
+        "▫️ /biology - Biology chapters\n"
+        "▫️ /chemistry - Chemistry chapters\n"
+        "▫️ /chapters - All chapters\n"
+        "▫️ /stop - Quiz rok do\n"
+        "▫️ /timing - Subject timing\n"
+        "▫️ /help - Madad\n\n"
         "⏱️ *Timing:*\n"
         "🧬 Biology: 15 sec\n"
         "⚗️ Chemistry: 40 sec\n\n"
@@ -268,22 +279,24 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📖 *Commands:*\n\n"
         "*Quiz commands:*\n"
-        "`/quiz 10` - 10 random questions\n"
-        "`/quiz 10 chemistry` - 10 Chemistry questions\n"
-        "`/quiz 10 biology` - 10 Biology questions\n"
-        "`/quiz 10 mole` - 10 questions mole chapter se\n"
-        "`/quiz 50` - 50 questions\n\n"
+        "/quiz 10 - 10 random questions\n"
+        "/quiz 10 chemistry - 10 Chemistry questions\n"
+        "/quiz 10 biology - 10 Biology questions\n"
+        "/quiz 10 mole - 10 questions mole chapter se\n"
+        "/quiz 50 - 50 questions\n\n"
         "*Chapter lists:*\n"
-        "`/biology` - Biology chapters\n"
-        "`/chemistry` - Chemistry chapters\n"
-        "`/chapters` - Saare chapters\n\n"
+        "/biology - Biology chapters\n"
+        "/chemistry - Chemistry chapters\n"
+        "/chapters - Saare chapters\n\n"
         "*Others:*\n"
-        "`/stop` - Quiz rok do\n"
-        "`/timing` - Timing dekho\n\n"
+        "/stop - Quiz rok do\n"
+        "/timing - Timing dekho\n\n"
         "✨ Chapter list load hote waqt progress bar animation dikhega!",
         parse_mode="Markdown"
     )
-    async def chapters(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+
+async def chapters(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     thread_id = update.message.message_thread_id
 
@@ -299,7 +312,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         f"📚 *All Chapters:*\n\n{chapters_list}\n\n"
-        f"📝 *Quiz ke liye:* `/quiz 10 chapter name`",
+        f"📝 Quiz ke liye: /quiz 10 chapter name",
         parse_mode="Markdown"
     )
 
@@ -327,8 +340,8 @@ async def biology_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         f"🧬 *Biology Chapters:*\n\n{chapters_list}\n\n"
-        f"📝 *Quiz ke liye:* `/quiz 10` (random)\n"
-        f"📖 *Chapter wise:* `/quiz 10 chapter name`\n"
+        f"📝 Quiz ke liye: /quiz 10 (random)\n"
+        f"📖 Chapter wise: /quiz 10 chapter name\n"
         f"⏱️ Biology: 15 sec per question",
         parse_mode="Markdown"
     )
@@ -357,8 +370,8 @@ async def chemistry_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         f"⚗️ *Chemistry Chapters:*\n\n{chapters_list}\n\n"
-        f"📝 *Quiz ke liye:* `/quiz 10` (random)\n"
-        f"📖 *Chapter wise:* `/quiz 10 chapter name`\n"
+        f"📝 Quiz ke liye: /quiz 10 (random)\n"
+        f"📖 Chapter wise: /quiz 10 chapter name\n"
         f"⏱️ Chemistry: 40 sec per question",
         parse_mode="Markdown"
     )
@@ -391,6 +404,8 @@ async def send_one_quiz(chat_id, context, q):
     timing = get_timing(subject)
     poll_time = timing["poll_time"]
 
+    logger.info(f"SENDING POLL -> chat_id={chat_id} | subject={subject} | thread_id={thread_id} | type={type(thread_id).__name__}")
+
     try:
         msg = await context.bot.send_poll(
             chat_id=chat_id,
@@ -407,10 +422,10 @@ async def send_one_quiz(chat_id, context, q):
             "correct_option_id": answer,
             "thread_id": thread_id,
         }
-        logger.info(f"Poll sent: {subject} | timer: {poll_time}s | thread: {thread_id}")
+        logger.info(f"Poll sent successfully | message_id={msg.message_id}")
         return True
     except Exception as e:
-        logger.error(f"Poll send error: {e}")
+        logger.error(f"Poll send error: {type(e).__name__}: {e}")
         return False
 
 
@@ -444,7 +459,9 @@ async def poll_answer_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
         except Exception as e:
             logger.warning(f"Correct answer msg skip: {e}")
-            async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+
+async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not QUESTIONS:
         await update.message.reply_text("Question bank khaali hai.")
         return

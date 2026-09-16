@@ -4,6 +4,7 @@ import os
 import random
 import logging
 import threading
+import re
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 # === FIX: Python 3.14 event loop issue ===
@@ -31,15 +32,25 @@ logger = logging.getLogger(__name__)
 # === CONFIG ===
 BRAND_NAME = "SPARTA NEETQUIZ"
 BRAND_TAGLINE = "India ka sabse tez NEET quiz bot"
-GAP_SECONDS = 15
 MAX_QUESTIONS = 100
-# ==============
+
+# === SUBJECT WISE TIMING ===
+# gap = do questions ke beech ka wait (seconds)
+# poll_time = poll ka animated timer / open_period (5-600 seconds)
+SUBJECT_TIMING = {
+    "Biology":   {"gap": 15, "poll_time": 15},
+    "Chemistry": {"gap": 40, "poll_time": 40},
+    "Physics":   {"gap": 20, "poll_time": 20},
+}
+DEFAULT_TIMING = {"gap": 20, "poll_time": 20}
+# ==========================
 
 # === THREAD IDs (subject wise) ===
+# None = General topic (agar group forum nahi hai toh None hi rakhna)
 THREAD_IDS = {
     "Physics": 2563,
     "Chemistry": 2565,
-    "Biology": None,   # None = General topic
+    "Biology": None,
 }
 # ================================
 
@@ -152,31 +163,34 @@ def run_http_server():
 # ==========================================
 
 
+def get_timing(subject):
+    """Subject ke hisaab se gap aur poll_time do."""
+    return SUBJECT_TIMING.get(subject, DEFAULT_TIMING)
+
+
 def clean_text(text):
-    """LaTeX symbols aur HTML tags hata do."""
-    import re
-    text = re.sub(r'<[^>]+>', '', text)
-    text = re.sub(r'\$[^$]*\$', '', text)
-    text = re.sub(r'\\[a-zA-Z]+\{[^}]*\}', '', text)
-    text = re.sub(r'\\[a-zA-Z]+', '', text)
-    text = re.sub(r'\s+', ' ', text)
+    """HTML tags, LaTeX aur extra spaces hata do."""
+    text = re.sub(r'<[^>]+>', '', text)          # HTML tags
+    text = re.sub(r'\$[^$]*\$', '', text)        # LaTeX inline
+    text = re.sub(r'\\[a-zA-Z]+\{[^}]*\}', '', text)  # LaTeX commands
+    text = re.sub(r'\\[a-zA-Z]+', '', text)      # LaTeX leftover
+    text = re.sub(r'\s+', ' ', text)             # extra spaces
     return text.strip()
 
 
 def matches_filter(q, filter_text):
-    """Check karo ki question filter se match karta hai ya nahi (partial match)."""
+    """Check karo ki question filter se match karta hai ya nahi."""
     filter_lower = filter_text.lower().strip()
     subject = q.get("subject", "").lower()
     chapter = q.get("chapter", "").lower()
-    
-    # Subject mein partial match
     if filter_lower in subject:
         return True
-    # Chapter mein partial match
     if filter_lower in chapter:
         return True
     return False
 
+
+# ==== COMMAND HANDLERS ====
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -189,8 +203,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "▫️ `/quiz 10 mole` - Chapter wise (partial match)\n"
         "▫️ `/stop` - Quiz rok do\n"
         "▫️ `/chapters` - Chapter list\n"
+        "▫️ `/timing` - Subject wise timing\n"
         "▫️ `/help` - Madad\n\n"
-        f"⏱️ Har question ke beech {GAP_SECONDS} second ka gap\n"
+        "⏱️ *Timing:*\n"
+        "🧬 Biology: 15 sec per question\n"
+        "⚗️ Chemistry: 40 sec per question\n\n"
         f"📚 Powered by {BRAND_NAME}",
         parse_mode="Markdown"
     )
@@ -210,8 +227,12 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "`/quiz 20 living world`\n\n"
         "*Others:*\n"
         "`/chapters` - Saare chapters\n"
+        "`/timing` - Timing dekho\n"
         "`/stop` - Quiz rok do\n\n"
-        f"⏱️ Har question ke beech {GAP_SECONDS} second ka gap",
+        "⏱️ *Timing:*\n"
+        "🧬 Biology: 15 sec\n"
+        "⚗️ Chemistry: 40 sec\n\n"
+        "📷 Poll ke top pe animated timer dikhega!",
         parse_mode="Markdown"
     )
 
@@ -227,8 +248,18 @@ async def chapters(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def timing_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = "⏱️ *Subject-wise Timing:*\n\n"
+    for subj, t in SUBJECT_TIMING.items():
+        msg += f"• *{subj}:* {t['poll_time']} sec\n"
+    msg += "\n📊 Timer poll ke top pe animated countdown ke roop mein dikhta hai."
+    await update.message.reply_text(msg, parse_mode="Markdown")
+
+
+# ==== QUIZ LOGIC ====
+
 async def send_one_quiz(chat_id, context, q):
-    """Ek question bhejo aur poll ID track karo."""
+    """Poll bhejo with animated timer (open_period) based on subject."""
     options = [clean_text(o)[:100] for o in q["options"]]
 
     if len(options) != 4 or any(not o for o in options):
@@ -242,9 +273,10 @@ async def send_one_quiz(chat_id, context, q):
     if not isinstance(answer, int) or answer < 0 or answer > 3:
         return False
 
-    # Subject ke hisaab se thread_id choose karo
     subject = q.get("subject", "Biology")
     thread_id = THREAD_IDS.get(subject, None)
+    timing = get_timing(subject)
+    poll_time = timing["poll_time"]
 
     try:
         msg = await context.bot.send_poll(
@@ -254,6 +286,7 @@ async def send_one_quiz(chat_id, context, q):
             type=Poll.QUIZ,
             correct_option_id=answer,
             is_anonymous=False,
+            open_period=poll_time,           # ⏱️ ANIMATED TIMER
             message_thread_id=thread_id,
         )
         POLL_TRACKER[msg.poll.id] = {
@@ -261,6 +294,7 @@ async def send_one_quiz(chat_id, context, q):
             "correct_option_id": answer,
             "thread_id": thread_id,
         }
+        logger.info(f"Poll sent: {subject} | timer: {poll_time}s")
         return True
     except Exception as e:
         logger.error(f"Poll send error: {e}")
@@ -301,11 +335,6 @@ async def poll_answer_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Usage:
-      /quiz <number>                     -> itne random questions
-      /quiz <number> <filter>            -> subject ya chapter (partial match)
-    """
     if not QUESTIONS:
         await update.message.reply_text("Question bank khaali hai.")
         return
@@ -340,7 +369,6 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         count = MAX_QUESTIONS
 
-    # Pool select karo (partial match)
     if filter_text:
         pool = [q for q in QUESTIONS if matches_filter(q, filter_text)]
         if not pool:
@@ -352,7 +380,7 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         pool = QUESTIONS
 
-    # 1 question ke liye session start nahi karo
+    # Single question quick mode
     if count == 1:
         for _ in range(5):
             q = random.choice(pool)
@@ -361,6 +389,7 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Question bhejne mein problem aayi.")
         return
 
+    # Multi question session
     ACTIVE_SESSIONS.add(chat_id)
     filter_msg = f"📖 {filter_text.title()}\n" if filter_text else ""
 
@@ -368,7 +397,7 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🎯 *{BRAND_NAME}*\n\n"
         f"{filter_msg}"
         f"📝 {count} questions aa rahe hain...\n"
-        f"⏱️ Har question ke beech {GAP_SECONDS} second ka gap.\n"
+        f"⏱️ Subject ke hisaab se timer lagega.\n"
         f"🛑 Rokne ke liye /stop bhejo.\n\n"
         f"Apne answers ready rakho! 💪",
         parse_mode="Markdown"
@@ -399,7 +428,11 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if await send_one_quiz(chat_id, context, q):
             sent += 1
             if sent < count:
-                for _ in range(GAP_SECONDS):
+                # Subject ke hisaab se gap
+                subject = q.get("subject", "Biology")
+                gap = get_timing(subject)["gap"]
+                logger.info(f"Waiting {gap}s before next question...")
+                for _ in range(gap):
                     if chat_id not in ACTIVE_SESSIONS:
                         await update.message.reply_text(
                             f"🛑 Quiz rok diya gaya.\n"
@@ -424,7 +457,6 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def stop_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Chalu quiz session ko rok do."""
     chat_id = update.effective_chat.id
     if chat_id in ACTIVE_SESSIONS:
         ACTIVE_SESSIONS.discard(chat_id)
@@ -442,13 +474,17 @@ async def stop_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
+# ==== MAIN ====
+
 def main():
     if not BOT_TOKEN:
         raise SystemExit("BOT_TOKEN environment variable set karo.")
 
+    # HTTP health check server (Render ke liye)
     http_thread = threading.Thread(target=run_http_server, daemon=True)
     http_thread.start()
 
+    # Application build
     app = (
         Application.builder()
         .token(BOT_TOKEN)
@@ -456,15 +492,24 @@ def main():
         .build()
     )
 
+    # Handlers register
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_cmd))
-    app.add_handler(CommandHandler("chapters", chapters))
     app.add_handler(CommandHandler("quiz", quiz))
     app.add_handler(CommandHandler("stop", stop_quiz))
+    app.add_handler(CommandHandler("chapters", chapters))
+    app.add_handler(CommandHandler("timing", timing_cmd))
     app.add_handler(PollAnswerHandler(poll_answer_handler))
 
-    logger.info("Bot start ho raha hai...")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    logger.info(f"🚀 {BRAND_NAME} bot start ho raha hai...")
+    logger.info(f"📚 Total questions: {len(QUESTIONS)}")
+    logger.info("⏱️  Biology: 15s | Chemistry: 40s | Physics: 20s")
+    logger.info("✅ Polling mode active...")
+
+    app.run_polling(
+        allowed_updates=Update.ALL_TYPES,
+        drop_pending_updates=True,
+    )
 
 
 if __name__ == "__main__":

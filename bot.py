@@ -136,30 +136,30 @@ except Exception as e:
 
 logger.info(f"TOTAL: {len(QUESTIONS)} questions loaded")
 
-# Per-user per-chat sessions (allows parallel multi-group + multi-user)
+# === Per user + per topic sessions (chat_id, thread_id, user_id) ===
 ACTIVE_SESSIONS = set()
 POLL_TRACKER = {}
 
 
-def session_key(chat_id, user_id):
-    return (chat_id, user_id)
+def session_key(chat_id, user_id, thread_id):
+    return (chat_id, thread_id, user_id)
 
 
-def is_session_running(chat_id, user_id):
-    return session_key(chat_id, user_id) in ACTIVE_SESSIONS
+def is_session_running(chat_id, user_id, thread_id):
+    return session_key(chat_id, user_id, thread_id) in ACTIVE_SESSIONS
 
 
-def start_session(chat_id, user_id):
-    ACTIVE_SESSIONS.add(session_key(chat_id, user_id))
+def start_session(chat_id, user_id, thread_id):
+    ACTIVE_SESSIONS.add(session_key(chat_id, user_id, thread_id))
 
 
-def stop_session(chat_id, user_id=None):
+def stop_session(chat_id, user_id=None, thread_id=None):
     if user_id is None:
         to_remove = [s for s in ACTIVE_SESSIONS if s[0] == chat_id]
         for s in to_remove:
             ACTIVE_SESSIONS.discard(s)
     else:
-        ACTIVE_SESSIONS.discard(session_key(chat_id, user_id))
+        ACTIVE_SESSIONS.discard(session_key(chat_id, user_id, thread_id))
 
 
 class HealthHandler(BaseHTTPRequestHandler):
@@ -315,7 +315,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/stop - Quiz rok do\n"
         "/timing - Timing dekho\n"
         "/myid - Group ID dekho\n\n"
-        "✨ Chapter list load hote waqt progress bar animation dikhega!",
+        "✨ Har topic mein alag quiz parallel chal sakta hai!",
         parse_mode="Markdown"
     )
 
@@ -505,10 +505,11 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     chat_id = update.effective_chat.id
     user_id = update.effective_user.id
+    thread_id = update.message.message_thread_id
 
-    if is_session_running(chat_id, user_id):
+    if is_session_running(chat_id, user_id, thread_id):
         await update.message.reply_text(
-            "⚠️ Aapka ek quiz session pehle se chal raha hai.\n"
+            "⚠️ Aapka ek quiz session is topic mein pehle se chal raha hai.\n"
             "Rokne ke liye /stop bhejo."
         )
         return
@@ -555,15 +556,16 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def _start_quiz_session(update, context, pool, count, filter_text=None):
     chat_id = update.effective_chat.id
     user_id = update.effective_user.id
+    thread_id = update.message.message_thread_id
 
-    if is_session_running(chat_id, user_id):
+    if is_session_running(chat_id, user_id, thread_id):
         await update.message.reply_text(
-            "⚠️ Aapka ek quiz session pehle se chal raha hai.\n"
+            "⚠️ Aapka ek quiz session is topic mein pehle se chal raha hai.\n"
             "Rokne ke liye /stop bhejo."
         )
         return
 
-    start_session(chat_id, user_id)
+    start_session(chat_id, user_id, thread_id)
     filter_msg = ""
     if filter_text:
         filter_msg = f"📖 {filter_text.title()}\n"
@@ -583,7 +585,7 @@ async def _start_quiz_session(update, context, pool, count, filter_text=None):
     used = set()
 
     while sent < count and attempts < count * 5:
-        if not is_session_running(chat_id, user_id):
+        if not is_session_running(chat_id, user_id, thread_id):
             await update.message.reply_text(
                 f"🛑 Quiz rok diya gaya.\n"
                 f"📊 Total {sent} questions bheje gaye the.\n\n"
@@ -605,9 +607,9 @@ async def _start_quiz_session(update, context, pool, count, filter_text=None):
             if sent < count:
                 subject = q.get("subject", "Biology")
                 gap = get_timing(subject)["gap"]
-                logger.info(f"Waiting {gap}s | chat: {chat_id} | user: {user_id}")
+                logger.info(f"Waiting {gap}s | chat: {chat_id} | thread: {thread_id} | user: {user_id}")
                 for _ in range(gap):
-                    if not is_session_running(chat_id, user_id):
+                    if not is_session_running(chat_id, user_id, thread_id):
                         await update.message.reply_text(
                             f"🛑 Quiz rok diya gaya.\n"
                             f"📊 Total {sent} questions bheje gaye the.\n\n"
@@ -619,7 +621,7 @@ async def _start_quiz_session(update, context, pool, count, filter_text=None):
         else:
             await asyncio.sleep(0.5)
 
-    stop_session(chat_id, user_id)
+    stop_session(chat_id, user_id, thread_id)
 
     await update.message.reply_text(
         f"✅ *Quiz Complete!*\n\n"
@@ -633,18 +635,19 @@ async def _start_quiz_session(update, context, pool, count, filter_text=None):
 async def stop_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     user_id = update.effective_user.id
+    thread_id = update.message.message_thread_id
 
-    if is_session_running(chat_id, user_id):
-        stop_session(chat_id, user_id)
+    if is_session_running(chat_id, user_id, thread_id):
+        stop_session(chat_id, user_id, thread_id)
         await update.message.reply_text(
-            f"🛑 *Aapka quiz session rok diya gaya.*\n\n"
+            f"🛑 *Aapka quiz session is topic mein rok diya gaya.*\n\n"
             f"Dobara shuru karne ke liye /quiz 10 bhejo.\n\n"
             f"📚 Powered by {BRAND_NAME}",
             parse_mode="Markdown"
         )
     else:
         await update.message.reply_text(
-            "Koi active quiz session nahi chal raha.\n"
+            "Is topic mein koi active quiz session nahi chal raha.\n"
             "Start karne ke liye /quiz 10 bhejo.",
             parse_mode="Markdown"
         )
@@ -677,7 +680,7 @@ def main():
 
     logger.info(f"Bot start ho raha hai...")
     logger.info(f"Total questions: {len(QUESTIONS)}")
-    logger.info("Multi-group + multi-user parallel support active!")
+    logger.info("Multi-group + multi-topic + multi-user parallel support active!")
 
     app.run_polling(
         allowed_updates=Update.ALL_TYPES,

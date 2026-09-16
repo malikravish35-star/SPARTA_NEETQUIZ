@@ -43,16 +43,14 @@ SUBJECT_TIMING = {
 DEFAULT_TIMING = {"gap": 20, "poll_time": 20}
 
 # === THREAD IDs (per group, subject wise) ===
-# None = General topic
 THREAD_IDS = {
     -1004395462386: {
-        "Chemistry": 2563,    # Chemistry → topic 2563
-        "Biology": None,      # Biology → General
-        "Physics": None,      # Physics → General
+        "Chemistry": 2563,
+        "Biology": None,
+        "Physics": None,
     },
 }
 
-# Fallback (jab group-specific entry na ho)
 DEFAULT_THREAD_IDS = {
     "Physics": None,
     "Chemistry": None,
@@ -180,7 +178,6 @@ def get_timing(subject):
 
 
 def get_thread_id(chat_id, subject):
-    """Per-group thread ID do; warna default."""
     group_threads = THREAD_IDS.get(chat_id, {})
     if subject in group_threads:
         return group_threads[subject]
@@ -188,7 +185,6 @@ def get_thread_id(chat_id, subject):
 
 
 def clean_text(text):
-    """HTML tags, LaTeX aur extra spaces hata do."""
     text = re.sub(r'<[^>]+>', '', text)
     text = re.sub(r'\$[^$]*\$', '', text)
     text = re.sub(r'\\[a-zA-Z]+\{[^}]*\}', '', text)
@@ -211,7 +207,6 @@ def matches_filter(q, filter_text):
 # ==== PROGRESS BAR ANIMATION ====
 
 def build_progress_bar(percent, style, total_blocks=12):
-    """Left-to-right fill hone wala progress bar."""
     filled = int((percent / 100) * total_blocks)
     empty = total_blocks - filled
     bar = style["color"] * filled + style["empty"] * empty
@@ -236,7 +231,6 @@ def build_progress_bar(percent, style, total_blocks=12):
 
 
 async def animate_loading(context, chat_id, thread_id, style_key, duration=2.5):
-    """Loading animation message jo left->right fill hota hai."""
     style = PROGRESS_STYLES.get(style_key, PROGRESS_STYLES["All"])
 
     try:
@@ -322,7 +316,6 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def chapters(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """All chapters - with loading animation."""
     chat_id = update.effective_chat.id
     thread_id = update.message.message_thread_id
 
@@ -344,11 +337,9 @@ async def chapters(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def biology_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Biology command - sirf chapter list dikhaye."""
     chat_id = update.effective_chat.id
     thread_id = update.message.message_thread_id
 
-    # Animation
     asyncio.create_task(
         animate_loading(context, chat_id, thread_id, "Biology", duration=2.5)
     )
@@ -375,7 +366,6 @@ async def biology_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def chemistry_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Chemistry command - sirf chapter list dikhaye."""
     chat_id = update.effective_chat.id
     thread_id = update.message.message_thread_id
 
@@ -596,4 +586,18 @@ async def _start_quiz_session(update, context, pool, count, filter_text=None):
                     if chat_id not in ACTIVE_SESSIONS:
                         await update.message.reply_text(
                             f"🛑 Quiz rok diya gaya.\n"
-                         
+                            f"📊 Total {sent} questions bheje gaye the.\n\n"
+                            f"Dobara shuru karne ke liye `/quiz {count}` bhejo.",
+                            parse_mode="Markdown"
+                        )
+                        return
+                    await asyncio.sleep(1)
+        else:
+            await asyncio.sleep(0.5)
+
+    ACTIVE_SESSIONS.pop(chat_id, None)
+
+    await update.message.reply_text(
+        f"✅ *Quiz Complete!*\n\n"
+        f"📊 Total {sent} questions bheje gaye.\n"
+        f"🔁 Aur practice ke liye `/quiz {cou

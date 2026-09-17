@@ -176,12 +176,57 @@ try:
                     continue
             q["subject"] = "Physics"
             q["tag"] = None
-            q["image"] = None
+            img = q.get("image")
+            q["image"] = img if isinstance(img, str) and img.startswith("http") else None
             QUESTIONS.append(q)
             loaded += 1
         logger.info(f"Physics: {loaded} loaded, {skipped} skipped")
 except Exception as e:
     logger.error(f"physics.json load error: {e}")
+
+
+# --- FUTURE CHAPTERS: repo mein chapter_*.json rakhte hi auto-load (code change NAHI chahiye) ---
+for chapter_file in sorted(f for f in os.listdir(".") if f.startswith("chapter_") and f.endswith(".json")):
+    try:
+        with open(chapter_file, "r", encoding="utf-8") as f:
+            chap_data = json.load(f)
+        chap_subject = chap_data.get("meta", {}).get("subject", "Physics") or "Physics"
+        if chap_subject not in SUBJECT_TIMING:
+            chap_subject = "Physics"
+        loaded = 0
+        skipped = 0
+        for q in chap_data.get("questions", []):
+            if q.get("needs_review"):
+                skipped += 1
+                continue
+            opts = q.get("options", [])
+            if not isinstance(opts, list) or len(opts) != 4:
+                skipped += 1
+                continue
+            if any(not str(o).strip() for o in opts):
+                skipped += 1
+                continue
+            ai = q.get("answer_index")
+            if isinstance(ai, int) and 1 <= ai <= 4:
+                q["answer"] = ai - 1
+            else:
+                a = q.get("answer")
+                if isinstance(a, str) and a.upper() in ("A", "B", "C", "D"):
+                    q["answer"] = "ABCD".index(a.upper())
+                elif isinstance(a, int) and 0 <= a <= 3:
+                    pass
+                else:
+                    skipped += 1
+                    continue
+            q["subject"] = chap_subject
+            q["tag"] = None
+            img = q.get("image")
+            q["image"] = img if isinstance(img, str) and img.startswith("http") else None
+            QUESTIONS.append(q)
+            loaded += 1
+        logger.info(f"Chapter {chapter_file}: {loaded} loaded, {skipped} skipped")
+    except Exception as e:
+        logger.error(f"Chapter {chapter_file} load error: {e}")
 
 logger.info(f"TOTAL: {len(QUESTIONS)} questions loaded")
 
@@ -768,6 +813,17 @@ async def send_one_quiz(chat_id, context, q):
     thread_id = get_thread_id(chat_id, subject)
     timing = get_timing(subject)
     poll_time = timing["poll_time"]
+    image_url = q.get("image")
+    if isinstance(image_url, str) and image_url.startswith("http"):
+        try:
+            await context.bot.send_photo(
+                chat_id=chat_id,
+                photo=image_url,
+                caption="🖼️ Is figure ko dekh kar answer karo 👇",
+                message_thread_id=thread_id,
+            )
+        except Exception as e:
+            logger.warning(f"Image send fail ({subject}): {e}")
     try:
         msg = await context.bot.send_poll(
             chat_id=chat_id,

@@ -29,7 +29,7 @@ MAX_QUESTIONS = 100
 SUBJECT_TIMING = {
     "Biology": {"gap": 15, "poll_time": 15},
     "Chemistry": {"gap": 40, "poll_time": 40},
-    "Physics": {"gap": 20, "poll_time": 20},
+    "Physics": {"gap": 60, "poll_time": 60},
     "RACE": {"gap": 15, "poll_time": 15},
 }
 DEFAULT_TIMING = {"gap": 20, "poll_time": 20}

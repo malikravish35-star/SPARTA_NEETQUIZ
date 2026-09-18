@@ -743,40 +743,6 @@ async def timing_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg, parse_mode="Markdown")
 
 
-async def race_timer_animation(context, chat_id, thread_id, seconds):
-    """RACE poll ke neeche live countdown bar - har second update hota hai (Zoology RACE ke liye 20s)"""
-    try:
-        m = await context.bot.send_message(
-            chat_id=chat_id, text="⏳ RACE Timer shuru...", message_thread_id=thread_id
-        )
-    except Exception as e:
-        logger.warning(f"Timer msg fail: {e}")
-        return
-    total = max(5, min(seconds, 600))
-    try:
-        for left in range(total, -1, -1):
-            frac = left / total
-            filled = round(frac * 10)
-            color = "🟩" if frac > 0.5 else ("🟨" if frac > 0.25 else "🟥")
-            bar = color * filled + "⬜" * (10 - filled)
-            icon = "⏳" if left % 2 else "⌛"
-            text = f"{icon} *{left}s*\n{bar}" if left > 0 else "⌛ *TIME UP!* 🏁🏎️"
-            try:
-                await context.bot.edit_message_text(
-                    chat_id=chat_id, message_id=m.message_id, text=text, parse_mode="Markdown"
-                )
-            except Exception:
-                pass
-            if left > 0:
-                await asyncio.sleep(1)
-        await asyncio.sleep(3)
-    finally:
-        try:
-            await context.bot.delete_message(chat_id=chat_id, message_id=m.message_id)
-        except Exception:
-            pass
-
-
 async def send_race_quiz(chat_id, context, q, question_num):
     options = [clean_text(o)[:100] for o in q["options"]]
     if len(options) != 4 or any(not o for o in options):
@@ -827,7 +793,6 @@ async def send_race_quiz(chat_id, context, q, question_num):
             "correct_option_id": answer,
             "thread_id": thread_id,
         }
-        asyncio.create_task(race_timer_animation(context, chat_id, thread_id, poll_time))
         logger.info(f"RACE poll sent: chat {chat_id} | thread {thread_id}")
         try:
             await context.bot.delete_message(

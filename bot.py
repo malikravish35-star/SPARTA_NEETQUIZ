@@ -29,7 +29,7 @@ MAX_QUESTIONS = 100
 SUBJECT_TIMING = {
     "Biology": {"gap": 15, "poll_time": 15},
     "Chemistry": {"gap": 40, "poll_time": 40},
-    "Physics": {"gap": 60, "poll_time": 60},
+    "Physics": {"gap": 20, "poll_time": 20},
     "RACE": {"gap": 15, "poll_time": 15},
 }
 DEFAULT_TIMING = {"gap": 20, "poll_time": 20}
@@ -219,7 +219,13 @@ for chapter_file in sorted(f for f in os.listdir(".") if f.startswith("chapter_"
                     skipped += 1
                     continue
             q["subject"] = chap_subject
-            q["tag"] = None
+            q["tag"] = chap_data.get("meta", {}).get("tag")
+            pt = chap_data.get("meta", {}).get("poll_time")
+            if isinstance(pt, int) and 5 <= pt <= 600:
+                q["poll_time"] = pt
+            gp = chap_data.get("meta", {}).get("gap")
+            if isinstance(gp, int) and 3 <= gp <= 600:
+                q["gap"] = gp
             img = q.get("image")
             q["image"] = img if isinstance(img, str) and img.startswith("http") else None
             QUESTIONS.append(q)
@@ -670,7 +676,9 @@ async def race_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if await send_race_quiz(chat_id, context, q, sent + 1):
             sent += 1
             if sent < count:
-                gap = SUBJECT_TIMING["RACE"]["gap"]
+                gap = q.get("gap")
+                if not isinstance(gap, int) or gap < 3 or gap > 600:
+                    gap = SUBJECT_TIMING["RACE"]["gap"]
                 for _ in range(gap):
                     if not is_session_running(chat_id, user_id, msg_thread_id):
                         await update.message.reply_text(
@@ -735,6 +743,40 @@ async def timing_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg, parse_mode="Markdown")
 
 
+async def race_timer_animation(context, chat_id, thread_id, seconds):
+    """RACE poll ke neeche live countdown bar - har second update hota hai (Zoology RACE ke liye 20s)"""
+    try:
+        m = await context.bot.send_message(
+            chat_id=chat_id, text="⏳ RACE Timer shuru...", message_thread_id=thread_id
+        )
+    except Exception as e:
+        logger.warning(f"Timer msg fail: {e}")
+        return
+    total = max(5, min(seconds, 600))
+    try:
+        for left in range(total, -1, -1):
+            frac = left / total
+            filled = round(frac * 10)
+            color = "🟩" if frac > 0.5 else ("🟨" if frac > 0.25 else "🟥")
+            bar = color * filled + "⬜" * (10 - filled)
+            icon = "⏳" if left % 2 else "⌛"
+            text = f"{icon} *{left}s*\n{bar}" if left > 0 else "⌛ *TIME UP!* 🏁🏎️"
+            try:
+                await context.bot.edit_message_text(
+                    chat_id=chat_id, message_id=m.message_id, text=text, parse_mode="Markdown"
+                )
+            except Exception:
+                pass
+            if left > 0:
+                await asyncio.sleep(1)
+        await asyncio.sleep(3)
+    finally:
+        try:
+            await context.bot.delete_message(chat_id=chat_id, message_id=m.message_id)
+        except Exception:
+            pass
+
+
 async def send_race_quiz(chat_id, context, q, question_num):
     options = [clean_text(o)[:100] for o in q["options"]]
     if len(options) != 4 or any(not o for o in options):
@@ -747,7 +789,9 @@ async def send_race_quiz(chat_id, context, q, question_num):
         return False
     thread_id = get_thread_id(chat_id, "RACE")
     timing = SUBJECT_TIMING["RACE"]
-    poll_time = timing["poll_time"]
+    poll_time = q.get("poll_time")
+    if not isinstance(poll_time, int) or not 5 <= poll_time <= 600:
+        poll_time = timing["poll_time"]
     try:
         title_msg = await context.bot.send_message(
             chat_id=chat_id,
@@ -783,6 +827,7 @@ async def send_race_quiz(chat_id, context, q, question_num):
             "correct_option_id": answer,
             "thread_id": thread_id,
         }
+        asyncio.create_task(race_timer_animation(context, chat_id, thread_id, poll_time))
         logger.info(f"RACE poll sent: chat {chat_id} | thread {thread_id}")
         try:
             await context.bot.delete_message(

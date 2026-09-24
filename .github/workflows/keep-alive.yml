@@ -1,13 +1,11 @@
 name: Keep Render Alive
-
 on:
   schedule:
-    - cron: '*/14 * * * *'
+    - cron: '*/10 * * * *'
   workflow_dispatch:
-
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Render Service
-        run: curl -s https://sparta-quizbot.onrender.com > /dev/null
+      - name: Ping Render Service (fail if not 2xx)
+        run: curl -sfS --retry 5 --retry-all-errors --retry-delay 10 --max-time 90 https://sparta-quizbot.onrender.com || curl -sfS --retry 3 --retry-all-errors --max-time 90 https://sparta-quizbot.onrender.com

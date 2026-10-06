@@ -1,11 +1,16 @@
-name: Keep Render Alive
+name: Keep-alive ping (sparta-neetquiz-o982)
+
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: "*/5 * * * *"
   workflow_dispatch:
+
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Render Service (fail if not 2xx)
-        run: curl -sfS --retry 5 --retry-all-errors --retry-delay 10 --max-time 90 https://sparta-quizbot.onrender.com || curl -sfS --retry 3 --retry-all-errors --max-time 90 https://sparta-quizbot.onrender.com
+      - name: Ping Render bot every 5 min
+        run: |
+          echo "pinging bot..."
+          curl -sS --max-time 90 -o - -w "\nHTTP %{http_code} in %{time_total}s\n" https://sparta-neetquiz-o982.onrender.com/ || true
+          echo "done."

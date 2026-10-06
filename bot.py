@@ -29,7 +29,7 @@ MAX_QUESTIONS = 100
 SUBJECT_TIMING = {
     "Biology": {"gap": 15, "poll_time": 15},
     "Chemistry": {"gap": 40, "poll_time": 40},
-    "Physics": {"gap": 20, "poll_time": 20},
+    "Physics": {"gap": 60, "poll_time": 60},
     "RACE": {"gap": 15, "poll_time": 15},
 }
 DEFAULT_TIMING = {"gap": 20, "poll_time": 20}
@@ -410,7 +410,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "⏱️ *Timing:*\n"
         "🧬 Biology: 15 sec\n"
         "⚗️ Chemistry: 40 sec\n"
-        "⚛️ Physics: 20 sec\n"
+        "⚛️ Physics: 60 sec\n"
         "🏁 RACE: 15 sec\n\n"
         f"📚 Powered by {BRAND_NAME}",
         parse_mode="Markdown"
@@ -589,7 +589,7 @@ async def physics_chapters_cmd(update: Update, context: ContextTypes.DEFAULT_TYP
         f"⚛️ *Physics Chapters:*\n\n{chapters_list}\n\n"
         f"📝 Quiz ke liye: /physics 10\n"
         f"📖 Chapter wise: /physics 10 chapter name\n"
-        f"⏱️ Physics: 20 sec per question",
+        f"⏱️ Physics: 60 sec per question",
         parse_mode="Markdown"
     )
 
@@ -1043,7 +1043,7 @@ def main():
     app.add_handler(PollAnswerHandler(poll_answer_handler))
     logger.info(f"Bot start ho raha hai...")
     logger.info(f"Total questions: {len(QUESTIONS)}")
-    logger.info("Physics: 20s | Biology: 15s | Chemistry: 40s | RACE: 15s")
+    logger.info("Physics: 60s | Biology: 15s | Chemistry: 40s | RACE: 15s")
     logger.info("Multi-group + multi-topic + multi-user parallel support active!")
     app.run_polling(
         allowed_updates=Update.ALL_TYPES,

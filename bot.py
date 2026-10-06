@@ -1025,6 +1025,21 @@ def main():
         raise SystemExit("BOT_TOKEN environment variable set karo.")
     http_thread = threading.Thread(target=run_http_server, daemon=True)
     http_thread.start()
+
+    # ---- SELF-PING heartbeat: Render free sleep se bachne ke liye ----
+    def _self_ping():
+        import time as _t, urllib.request as _ul
+        _t.sleep(20)
+        _url = os.environ.get("SELF_PING_URL", "https://sparta-neetquiz-o982.onrender.com/")
+        while True:
+            try:
+                _ul.urlopen(_url, timeout=25).read()
+                logger.info("self-ping ok (sleep nahi hoga)")
+            except Exception as _e:
+                logger.warning(f"self-ping fail: {_e}")
+            _t.sleep(90)
+    threading.Thread(target=_self_ping, daemon=True).start()
+    # ---- heartbeat end ----
     app = Application.builder().token(BOT_TOKEN).concurrent_updates(True).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_cmd))
